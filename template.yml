@@ -1,0 +1,63 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: A bot that collects news about Syria from a curated list of sources and posts daily summaries to Telegram
+
+Parameters:
+  TelegramBotToken:
+    Type: String
+    NoEcho: true
+  TelegramApiId:
+    Type: String
+    NoEcho: true
+  TelegramApiHash:
+    Type: String
+    NoEcho: true
+  SessionString:
+    Type: String
+    NoEcho: true
+  OpenaiApiKey:
+    Type: String
+    NoEcho: true
+Resources:
+  # Lambda Function
+  PuppeteerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./lambda
+      Handler: index.handler
+      Timeout: 300 # Increased timeout for web scraping
+      MemorySize: 2048
+      Runtime: nodejs22.x
+      Architectures:
+        - x86_64
+      Layers:
+        - !Ref ChromiumLayer
+      Events:
+        DailySchedule:
+          Type: Schedule
+          Properties:
+            Schedule: cron(10 21 * * ? *) # Run daily at 21:10 UTC
+            Description: Daily execution of the Puppeteer function
+            Enabled: true
+      Policies:
+        - AWSLambdaBasicExecutionRole
+      Environment:
+        Variables:
+          NODE_OPTIONS: --enable-source-maps
+          NODE_ENV: production
+          IS_LAMBDA: "true"
+          TELEGRAM_BOT_TOKEN: !Ref TelegramBotToken
+          TELEGRAM_API_ID: !Ref TelegramApiId
+          TELEGRAM_API_HASH: !Ref TelegramApiHash
+          SESSION_STRING: !Ref SessionString
+          OPENAI_API_KEY: !Ref OpenaiApiKey
+
+  # Chromium Layer
+  ChromiumLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      Description: Chromium binaries for Puppeteer
+      ContentUri: ./layers/chromium/
+      CompatibleRuntimes:
+        - nodejs22.x
+      RetentionPolicy: Retain
