@@ -13,11 +13,12 @@ export async function extractSANAArticleContent(url: string) {
     // Extract the article title and body
     const result = await page.evaluate(() => {
       const title =
-        document.querySelector("h1.entry-title")?.textContent?.trim() || "";
-      const paragraphs = Array.from(document.querySelectorAll(".entry p"));
+        document.querySelector("h1.s-title")?.textContent?.trim() || "";
+      const paragraphs = Array.from(
+        document.querySelectorAll(".entry-content.rbct p")
+      );
       const body = paragraphs
-        .slice(1) // Skip the first <p> which is the location of the article
-        .map((p) => p.textContent?.trim() || "")
+        .map((p) => p.textContent?.trim().replace(/\s+/g, " ") || "")
         .filter((text) => text.length > 0)
         .join("\n\n");
       return { title, body };

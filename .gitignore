@@ -404,3 +404,7 @@ lambda
 .specstory/.what-is-this.md
 .specstory
 layers
+.aws-sam/build.toml
+.aws-sam/build/template.yaml
+.aws-sam/build/PuppeteerFunction/index.js
+.aws-sam/build/PuppeteerFunction/index.js.map

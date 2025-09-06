@@ -3,13 +3,21 @@
   "version": "1.0.0",
   "description": "A bot that collects news about Syria from a curated list of sources and posts daily summaries to Telegram",
   "scripts": {
-    "start": "ts-node src/index.ts",
+    "start": "ts-node src/local.ts",
     "build": "ts-node esbuild.config.ts",
     "create-layer": "node scripts/create-layer.js",
     "predeploy": "npm run build && npm run create-layer",
     "deploy": "./deploy.sh",
     "register-webhook": "dotenv -e .env -- ts-node src/registerTelegramWebhook.ts",
-    "ts-node": "ts-node"
+    "ts-node": "ts-node",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run",
+    "sam:build": "sam build",
+    "sam:local": "sam local start-lambda",
+    "sam:invoke": "sam local invoke PuppeteerFunction",
+    "sam:invoke:event": "sam local invoke PuppeteerFunction -e events/schedule-event.json",
+    "sam:dev": "npm run build && sam build && sam local start-lambda"
   },
   "dependencies": {
     "aws-lambda": "^1.0.7",
@@ -20,6 +28,7 @@
     "express": "^5.1.0",
     "grammy": "^1.36.1",
     "input": "^1.0.1",
+    "lodash": "^4.17.21",
     "openai": "^4.97.0",
     "puppeteer-core": "10.1.0",
     "telegram": "^2.26.22",
@@ -28,11 +37,16 @@
   "devDependencies": {
     "@types/aws-lambda": "^8.10.147",
     "@types/express": "^5.0.1",
+    "@types/jsdom": "^21.1.7",
+    "@types/lodash": "^4.17.20",
     "@types/node": "^22.15.11",
+    "@vitest/ui": "^3.2.4",
     "dotenv-cli": "^8.0.0",
     "esbuild": "^0.23.0",
+    "jsdom": "^26.1.0",
     "puppeteer": "^24.8.0",
     "ts-node": "^10.9.2",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
   }
 }

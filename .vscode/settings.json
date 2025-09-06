@@ -1,3 +1,4 @@
 {
-  "cSpell.words": ["ـــــــــــــــــــــ"]
+  "cSpell.words": ["ـــــــــــــــــــــ", "domcontentloaded", "rbct"],
+  "cSpell.ignorePaths": ["tests/article-samples/**", "channels.json"]
 }
