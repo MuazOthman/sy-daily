@@ -15,6 +15,7 @@ const systemPrompt = `You are a news editor fluent in English and Arabic. You'll
 - Do not return the response inside a code block.
 - If a URL is provided, include it as a hyperlink using <a href="url">Source</a> at the end of the relevant bullet.
 - Sort bullet points by importance, with the most important items first.
+- Nation-wide events should be prioritized over local events. Also, events related to the president or foreign policy should be prioritized over other events.
 `;
 
 export async function summarizeArabicNewsInEnglish(
