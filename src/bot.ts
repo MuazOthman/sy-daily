@@ -4,7 +4,27 @@ import { TELEGRAM_CHANNEL_ID } from "./constants";
 if (!process.env.TELEGRAM_BOT_TOKEN) {
   throw new Error("TELEGRAM_BOT_TOKEN is not set");
 }
-export const bot = new Bot(process.env.TELEGRAM_BOT_TOKEN!);
+
+// Custom fetch function for Lambda compatibility
+const customFetch: typeof fetch = async (input, init) => {
+  const { default: nodeFetch } = await import('node-fetch');
+  
+  // Clean up AbortSignal if it's not a proper instance
+  if (init?.signal && typeof init.signal === 'object') {
+    if (!init.signal.constructor || init.signal.constructor.name !== 'AbortSignal') {
+      const { signal, ...cleanInit } = init;
+      return nodeFetch(input as any, cleanInit as any) as any;
+    }
+  }
+  
+  return nodeFetch(input as any, init as any) as any;
+};
+
+export const bot = new Bot(process.env.TELEGRAM_BOT_TOKEN!, {
+  client: {
+    fetch: customFetch
+  }
+});
 const channelId = TELEGRAM_CHANNEL_ID;
 
 // Add error handling middleware

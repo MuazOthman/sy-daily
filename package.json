@@ -4,7 +4,7 @@
   "description": "A bot that collects news about Syria from a curated list of sources and posts daily summaries to Telegram",
   "scripts": {
     "start": "ts-node src/local.ts",
-    "build": "rimraf lambda && ts-node esbuild.config.ts",
+    "build": "rimraf .aws-sam && rimraf lambda && ts-node esbuild.config.ts",
     "predeploy": "npm run build",
     "deploy": "./deploy.sh",
     "register-webhook": "dotenv -e .env -- ts-node src/registerTelegramWebhook.ts",
@@ -23,7 +23,7 @@
     "axios": "^1.11.0",
     "dotenv": "^16.4.7",
     "express": "^5.1.0",
-    "grammy": "^1.36.1",
+    "grammy": "^1.38.2",
     "input": "^1.0.1",
     "jsdom": "^26.1.0",
     "lodash": "^4.17.21",
