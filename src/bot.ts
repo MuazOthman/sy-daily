@@ -6,7 +6,7 @@ if (!process.env.TELEGRAM_BOT_TOKEN) {
 }
 
 // Custom fetch function for Lambda compatibility
-const customFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+const customFetch = async (input: any, init: any) => {
   const { default: nodeFetch } = await import('node-fetch');
   
   // Clean up AbortSignal if it's not a proper instance
