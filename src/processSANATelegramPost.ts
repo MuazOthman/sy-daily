@@ -3,7 +3,7 @@ import { extractSANAArticleContent } from "./extractSANAArticleContent";
 export async function processTelegramPost(
   message: string,
   telegramId: number,
-  channelUsername: string = "SyrianArabNewsAgency"
+  channelUsername: string
 ): Promise<string> {
   const articleUrl = message.match(
     /(?:https?:\/\/(?:www\.)?)?sana\.sy\/.*(?:\n|$)/gi

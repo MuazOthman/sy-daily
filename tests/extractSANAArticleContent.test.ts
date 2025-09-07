@@ -5,7 +5,7 @@ import { join } from "path";
 const ARTICLE_SAMPLES_FOLDER = "article-samples";
 
 // Mock the browser module
-const mockGetBrowser = vi.fn();
+const mockFetchAndParseHTML = vi.fn();
 
 type ArticleSample = {
   name: string;
@@ -47,57 +47,25 @@ const loadTestData = () => {
 
 const articleSamples = loadTestData();
 
-// Create mock page object with default implementation
-const mockPageFn = (html: string) => {
-  return {
-    goto: vi.fn().mockResolvedValue(undefined),
-    evaluate: vi.fn().mockImplementation(async (fn: Function) => {
-      // Create a mock DOM environment using jsdom
-      const { JSDOM } = (await import("jsdom")) as any;
-      const dom = new JSDOM(html);
-      const document = dom.window.document;
-
-      // Execute the function with the mock document as the global context
-      // The function expects to run in the browser context where 'document' is global
-      const originalDocument = global.document;
-      global.document = document;
-
-      try {
-        return fn();
-      } finally {
-        global.document = originalDocument;
-      }
-    }),
-    close: vi.fn(),
-  };
-};
-
-const mockBrowserFn = (mockPage: any) => {
-  return {
-    newPage: vi.fn().mockResolvedValue(mockPage),
-    close: vi.fn(),
-  } as any;
+// Create mock document function
+const mockDocumentFromHTML = (html: string): Document => {
+  const { JSDOM } = require("jsdom");
+  const dom = new JSDOM(html);
+  return dom.window.document;
 };
 
 describe("extractSANAArticleContent", () => {
-  let mockPage: any;
-  let mockBrowser: any;
   let extractSANAArticleContent: any;
 
   beforeEach(async () => {
     // Mock the browser module before importing
     vi.doMock("../src/browser", () => ({
-      getBrowser: mockGetBrowser,
+      fetchAndParseHTML: mockFetchAndParseHTML,
     }));
 
     // Dynamically import the module under test after mocking
     const module = await import("../src/extractSANAArticleContent");
     extractSANAArticleContent = module.extractSANAArticleContent;
-
-    // Create fresh mocks for each test
-    mockPage = mockPageFn("");
-    mockBrowser = mockBrowserFn(mockPage);
-    mockGetBrowser.mockResolvedValue(mockBrowser);
   });
 
   afterEach(() => {
@@ -108,47 +76,14 @@ describe("extractSANAArticleContent", () => {
   });
 
   // Test error handling scenarios
-  it("should handle browser errors gracefully", async () => {
+  it("should handle fetch errors gracefully", async () => {
     const mockUrl = "https://sana.sy/?p=2215080";
 
-    // Mock browser to throw an error
-    mockGetBrowser.mockRejectedValue(new Error("Browser error"));
+    // Mock fetchAndParseHTML to throw an error
+    mockFetchAndParseHTML.mockRejectedValue(new Error("Fetch error"));
 
     const result = await extractSANAArticleContent(mockUrl);
     expect(result).toBeUndefined();
-  });
-
-  it("should handle page navigation errors", async () => {
-    const mockUrl = "https://sana.sy/?p=2215080";
-
-    // Mock page.goto to throw an error
-    mockPage.goto.mockRejectedValue(new Error("Navigation error"));
-
-    const result = await extractSANAArticleContent(mockUrl);
-    expect(result).toBeUndefined();
-  });
-
-  it("should handle page evaluation errors", async () => {
-    const mockUrl = "https://sana.sy/?p=2215080";
-
-    // Mock page.evaluate to throw an error
-    mockPage.evaluate.mockRejectedValue(new Error("Evaluation error"));
-
-    const result = await extractSANAArticleContent(mockUrl);
-    expect(result).toBeUndefined();
-  });
-
-  it("should ensure browser is closed even if page operations fail", async () => {
-    const mockUrl = "https://sana.sy/?p=2215080";
-
-    // Mock page.goto to throw an error
-    mockPage.goto.mockRejectedValue(new Error("Navigation error"));
-
-    const result = await extractSANAArticleContent(mockUrl);
-    expect(result).toBeUndefined();
-
-    // Browser should still be closed even if page operations fail
-    expect(mockBrowser.close).toHaveBeenCalledOnce();
   });
 
   // Test with sample data
@@ -156,10 +91,8 @@ describe("extractSANAArticleContent", () => {
     articleSamples.forEach((sample) => {
       describe(`sample: ${sample.name}`, () => {
         beforeEach(async () => {
-          // Create fresh mocks with sample HTML
-          mockPage = mockPageFn(sample.html);
-          mockBrowser = mockBrowserFn(mockPage);
-          mockGetBrowser.mockResolvedValue(mockBrowser);
+          // Mock fetchAndParseHTML to return the sample HTML as a Document
+          mockFetchAndParseHTML.mockResolvedValue(mockDocumentFromHTML(sample.html));
         });
 
         it("should extract article content successfully", async () => {
@@ -167,24 +100,19 @@ describe("extractSANAArticleContent", () => {
 
           const result = await extractSANAArticleContent(mockUrl);
 
-          expect(mockBrowser.newPage).toHaveBeenCalledOnce();
-          expect(mockPage.goto).toHaveBeenCalledWith(mockUrl, {
-            waitUntil: "domcontentloaded",
-          });
-          expect(mockPage.evaluate).toHaveBeenCalledOnce();
-          expect(mockBrowser.close).toHaveBeenCalledOnce();
+          expect(mockFetchAndParseHTML).toHaveBeenCalledWith(mockUrl);
 
           // Verify the extracted content matches our expected results
           expect(result!.title).toBe(sample.expectedResult.title);
           expect(result!.body).toBe(sample.expectedResult.body.join("\n\n"));
         });
 
-        it("should call page.evaluate with correct function", async () => {
+        it("should call fetchAndParseHTML with correct URL", async () => {
           const mockUrl = "https://sana.sy/?p=2215080";
 
           const result = await extractSANAArticleContent(mockUrl);
 
-          expect(mockPage.evaluate).toHaveBeenCalledWith(expect.any(Function));
+          expect(mockFetchAndParseHTML).toHaveBeenCalledWith(mockUrl);
           expect(result!.title).toBe(sample.expectedResult.title);
           expect(result!.body).toBe(sample.expectedResult.body.join("\n\n"));
         });
@@ -196,22 +124,8 @@ describe("extractSANAArticleContent", () => {
   describe("edge cases", () => {
     it("should handle empty title and body", async () => {
       const mockUrl = "https://sana.sy/?p=2215080";
-
-      // Override the mock to return empty content
-      mockPage.evaluate.mockImplementation(async (fn: Function) => {
-        const { JSDOM } = (await import("jsdom")) as any;
-        const dom = new JSDOM("<html><body></body></html>");
-        const document = dom.window.document;
-
-        const originalDocument = global.document;
-        global.document = document;
-
-        try {
-          return fn();
-        } finally {
-          global.document = originalDocument;
-        }
-      });
+      
+      mockFetchAndParseHTML.mockResolvedValue(mockDocumentFromHTML("<html><body></body></html>"));
 
       const result = await extractSANAArticleContent(mockUrl);
 
@@ -220,24 +134,10 @@ describe("extractSANAArticleContent", () => {
 
     it("should handle missing title element", async () => {
       const mockUrl = "https://sana.sy/?p=2215080";
-
-      // Override the mock to return HTML without title
-      mockPage.evaluate.mockImplementation(async (fn: Function) => {
-        const { JSDOM } = (await import("jsdom")) as any;
-        const dom = new JSDOM(
-          '<html><body><div class="entry-content rbct"><p>Test body</p></div></body></html>'
-        );
-        const document = dom.window.document;
-
-        const originalDocument = global.document;
-        global.document = document;
-
-        try {
-          return fn();
-        } finally {
-          global.document = originalDocument;
-        }
-      });
+      
+      mockFetchAndParseHTML.mockResolvedValue(mockDocumentFromHTML(
+        '<html><body><div class="entry-content rbct"><p>Test body</p></div></body></html>'
+      ));
 
       const result = await extractSANAArticleContent(mockUrl);
 
@@ -247,24 +147,10 @@ describe("extractSANAArticleContent", () => {
 
     it("should handle missing paragraph elements", async () => {
       const mockUrl = "https://sana.sy/?p=2215080";
-
-      // Override the mock to return HTML without paragraphs
-      mockPage.evaluate.mockImplementation(async (fn: Function) => {
-        const { JSDOM } = (await import("jsdom")) as any;
-        const dom = new JSDOM(
-          '<html><body><h1 class="s-title">Test Title</h1></body></html>'
-        );
-        const document = dom.window.document;
-
-        const originalDocument = global.document;
-        global.document = document;
-
-        try {
-          return fn();
-        } finally {
-          global.document = originalDocument;
-        }
-      });
+      
+      mockFetchAndParseHTML.mockResolvedValue(mockDocumentFromHTML(
+        '<html><body><h1 class="s-title">Test Title</h1></body></html>'
+      ));
 
       const result = await extractSANAArticleContent(mockUrl);
 

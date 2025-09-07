@@ -20,7 +20,7 @@ Parameters:
     NoEcho: true
 Resources:
   # Lambda Function
-  PuppeteerFunction:
+  NewsCollectorFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: ./lambda
@@ -30,14 +30,12 @@ Resources:
       Runtime: nodejs22.x
       Architectures:
         - x86_64
-      Layers:
-        - !Ref ChromiumLayer
       Events:
         DailySchedule:
           Type: Schedule
           Properties:
-            Schedule: cron(10 21 * * ? *) # Run daily at 21:10 UTC
-            Description: Daily execution of the Puppeteer function
+            Schedule: cron(10 21 * * ? *) # Run daily at 21:10 UTC (00:10 Damascus time)
+            Description: Daily execution of the news collector function
             Enabled: true
       Policies:
         - AWSLambdaBasicExecutionRole
@@ -51,13 +49,3 @@ Resources:
           TELEGRAM_API_HASH: !Ref TelegramApiHash
           SESSION_STRING: !Ref SessionString
           OPENAI_API_KEY: !Ref OpenaiApiKey
-
-  # Chromium Layer
-  ChromiumLayer:
-    Type: AWS::Serverless::LayerVersion
-    Properties:
-      Description: Chromium binaries for Puppeteer
-      ContentUri: ./layers/chromium/
-      CompatibleRuntimes:
-        - nodejs22.x
-      RetentionPolicy: Retain

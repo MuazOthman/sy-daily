@@ -8,10 +8,14 @@ buildSync({
   sourcemap: true,
   target: "node22",
   outdir: "lambda",
-  external: ["aws-sdk", "chrome-aws-lambda", "puppeteer-core"],
+  external: ["aws-sdk", "./xhr-sync-worker.js"],
   define: {
     "process.env.IS_LAMBDA": "true",
   },
 });
+
+// copy channels.json to lambda
+import fs from "fs";
+fs.copyFileSync("channels.json", "lambda/channels.json");
 
 console.log("Lambda build complete");

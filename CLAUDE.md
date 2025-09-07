@@ -6,8 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **Build**: `npm run build` - Compiles TypeScript to bundled Lambda function using esbuild
 - **Local development**: `ts-node src/local.ts` - Run the news collection and summarization locally
-- **Create Chromium layer**: `npm run create-layer` - Packages Chromium for AWS Lambda deployment
-- **Deploy preparation**: `npm run predeploy` - Runs build and creates layer before deployment
+- **Deploy preparation**: `npm run predeploy` - Runs build before deployment
 - **Deploy**: `npm run deploy` - Deploys to AWS using SAM with environment variables from .env
 - **Register Telegram webhook**: `npm run register-webhook` - Sets up Telegram bot webhook
 
@@ -26,7 +25,7 @@ This is a Telegram bot that collects Syrian news from SANA (Syrian Arab News Age
 ### AWS Lambda Deployment (Production)
 - **Entry point**: `src/lambda.ts` - AWS Lambda handler for scheduled execution
 - **Schedule**: Runs daily at 21:10 UTC via CloudWatch Events
-- **Dependencies**: Uses AWS Lambda layer with Chromium binaries for web scraping
+- **Dependencies**: Uses axios and JSDOM for web scraping
 
 ### Local Development
 - **Entry point**: `src/local.ts` - Direct execution for testing
@@ -43,7 +42,7 @@ This is a Telegram bot that collects Syrian news from SANA (Syrian Arab News Age
 
 **Key Modules**:
 - `bot.ts` - Grammy-based Telegram bot configuration and posting functionality
-- `browser.ts` - Puppeteer browser automation for web scraping
+- `browser.ts` - Axios and JSDOM-based HTML fetching and parsing for web scraping
 - `dateUtils.ts` - Damascus timezone handling for 24-hour windows
 - `constants.ts` - Channel IDs and configuration constants
 
@@ -60,12 +59,11 @@ The application requires these environment variables:
 - **TypeScript compilation**: Uses esbuild for fast bundling and minification
 - **Target**: Node.js 22.x runtime
 - **Output**: `lambda/index.js` for AWS deployment
-- **External dependencies**: AWS SDK, chrome-aws-lambda, and puppeteer-core are externalized
+- **External dependencies**: AWS SDK is externalized
 
 ### AWS Infrastructure
 
 Defined in `template.yml` (SAM template):
-- Lambda function with 5-minute timeout and 2GB memory
-- Chromium layer for browser functionality
+- Lambda function with 5-minute timeout and 1GB memory
 - Scheduled execution via CloudWatch Events
 - Parameter-based environment variable injection
