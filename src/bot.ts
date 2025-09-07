@@ -6,7 +6,7 @@ if (!process.env.TELEGRAM_BOT_TOKEN) {
 }
 
 // Custom fetch function for Lambda compatibility
-const customFetch: typeof fetch = async (input, init) => {
+const customFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   const { default: nodeFetch } = await import('node-fetch');
   
   // Clean up AbortSignal if it's not a proper instance
@@ -22,7 +22,7 @@ const customFetch: typeof fetch = async (input, init) => {
 
 export const bot = new Bot(process.env.TELEGRAM_BOT_TOKEN!, {
   client: {
-    fetch: customFetch
+    fetch: customFetch as any
   }
 });
 const channelId = TELEGRAM_CHANNEL_ID;
