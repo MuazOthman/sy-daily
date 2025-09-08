@@ -1,20 +1,20 @@
 # Syrian Daily News Bot
 
-A Telegram bot that automatically collects Syrian news from SANA (Syrian Arab News Agency) and posts daily summaries in English.
+A Telegram bot that automatically collects Syrian news from multiple Telegram channels and posts daily summaries in English.
 
 ## Features
 
-- Scrapes recent posts from SANA Telegram channel
+- Collects posts from multiple configurable Telegram channels (configured via `channels.json`)
 - Processes Arabic content and creates English summaries using OpenAI
 - Posts formatted daily summaries to a target Telegram channel
 - Supports both AWS Lambda deployment and local development
 - Handles Damascus timezone for accurate 24-hour news collection
+- Uses axios and JSDOM for lightweight web scraping
 
 ## Architecture
 
 ### AWS Lambda (Production)
 - Scheduled execution at 21:10 UTC daily
-- Uses Chromium layer for web scraping
 - Entry point: `src/lambda.ts`
 
 ### Local Development
@@ -52,9 +52,16 @@ npm install
 
 ### Local Testing
 ```bash
-npm run dev
+npm start
 # or directly:
 ts-node src/local.ts
+```
+
+### Testing
+```bash
+npm test          # Run tests with Vitest
+npm run test:ui   # Run tests with UI
+npm run test:run  # Run tests once
 ```
 
 ### Build
@@ -79,26 +86,45 @@ npm run deploy
 npm run register-webhook
 ```
 
+### SAM Local Development
+```bash
+npm run sam:build      # Build SAM application
+npm run sam:local      # Start local Lambda environment
+npm run sam:invoke     # Invoke Lambda function locally
+npm run sam:dev        # Full dev workflow
+```
+
 ## Project Structure
 
 ```
 src/
-├── lambda.ts          # AWS Lambda handler
-├── local.ts           # Local development entry point
-├── bot.ts             # Telegram bot configuration
-├── browser.ts         # Web scraping with Puppeteer
-├── dateUtils.ts       # Damascus timezone utilities
-└── constants.ts       # Configuration constants
+├── lambda.ts                      # AWS Lambda handler
+├── local.ts                       # Local development entry point
+├── executeForLast24Hours.ts       # Main orchestrator function
+├── getPostsInLast24Hours.ts       # Telegram API integration for post collection
+├── processSANATelegramPost.ts     # Individual post processing
+├── extractSANAArticleContent.ts   # Content extraction from articles
+├── summarizeArabicNewsInEnglish.ts # OpenAI-powered summarization
+├── bot.ts                         # Grammy-based Telegram bot
+├── browser.ts                     # Axios + JSDOM web scraping
+├── dateUtils.ts                   # Damascus timezone utilities
+├── constants.ts                   # Configuration constants
+├── types.ts                       # TypeScript type definitions
+└── dev/
+    ├── registerTelegramWebhook.ts # Webhook registration utility
+    └── server.ts                  # Development server
 
-template.yml           # AWS SAM template
+channels.json              # Channel configuration
+template.yml              # AWS SAM template
+vitest.config.ts          # Test configuration
 ```
 
 ## How It Works
 
-1. **Collection**: Fetches posts from SANA Telegram channel from the last 24 hours (Damascus time)
-2. **Processing**: Extracts content from each post using web scraping
+1. **Collection**: Uses Telegram API to fetch posts from configured channels in the last 24 hours (Damascus time)
+2. **Processing**: Extracts article content from linked URLs using axios and JSDOM
 3. **Summarization**: Uses OpenAI to create English summaries from Arabic content
-4. **Publishing**: Posts formatted summary to target Telegram channel
+4. **Publishing**: Posts formatted summary to target Telegram channel via Grammy bot framework
 
 ## License
 
