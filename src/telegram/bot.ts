@@ -81,6 +81,9 @@ export class TelegramBot {
   async postMessage(htmlText: string) {
     await this.bot.api.sendMessage(this.channelId, htmlText, {
       parse_mode: "HTML",
+      link_preview_options: {
+        is_disabled: true,
+      },
     });
     console.log("Message posted to Telegram.");
   }

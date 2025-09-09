@@ -1,5 +1,6 @@
 import { Strings } from "./strings";
 import { CollectedNewsData, ContentLanguage, NewsItem } from "../types";
+import { measureTelegramRenderedHtml } from "./measureTelegramRenderedHtml";
 
 const labelEmojis = {
   president: "🏛️",
@@ -55,8 +56,11 @@ export function telegramNewsFormatter({
   language: ContentLanguage;
   skipItems?: number;
 } & CollectedNewsData): string {
-  const formattedNewsItems = newsResponse.newsItems
-    .slice(skipItems)
+  const includedItems =
+    skipItems > 0
+      ? newsResponse.newsItems.slice(0, -skipItems)
+      : newsResponse.newsItems;
+  const formattedNewsItems = includedItems
     .map((item) => formatNewsItemForTelegram(language, item))
     .join("\n\n");
 
@@ -69,7 +73,14 @@ export function telegramNewsFormatter({
 
 ${formattedNewsItems}`;
 
-  while (msgHtml.length > 4096) {
+  // ensure the message is not too long or else sending it to telegram will fail
+
+  const { length } = measureTelegramRenderedHtml(msgHtml);
+
+  if (length > 4096) {
+    console.log(
+      `🔍 Message too long (${msgHtml.length} characters), skipping ${skipItems} items`
+    );
     return telegramNewsFormatter({
       language,
       newsResponse,
