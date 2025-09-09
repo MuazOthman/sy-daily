@@ -1,31 +1,37 @@
 import { Bot } from "grammy";
-import { TELEGRAM_CHANNEL_ID } from "./constants";
 
 if (!process.env.TELEGRAM_BOT_TOKEN) {
   throw new Error("TELEGRAM_BOT_TOKEN is not set");
 }
 
+if (!process.env.TELEGRAM_CHANNEL_ID) {
+  throw new Error("TELEGRAM_CHANNEL_ID is not set");
+}
+
 // Custom fetch function for Lambda compatibility
 const customFetch = async (input: any, init: any) => {
-  const { default: nodeFetch } = await import('node-fetch');
-  
+  const { default: nodeFetch } = await import("node-fetch");
+
   // Clean up AbortSignal if it's not a proper instance
-  if (init?.signal && typeof init.signal === 'object') {
-    if (!init.signal.constructor || init.signal.constructor.name !== 'AbortSignal') {
+  if (init?.signal && typeof init.signal === "object") {
+    if (
+      !init.signal.constructor ||
+      init.signal.constructor.name !== "AbortSignal"
+    ) {
       const { signal, ...cleanInit } = init;
       return nodeFetch(input as any, cleanInit as any) as any;
     }
   }
-  
+
   return nodeFetch(input as any, init as any) as any;
 };
 
 export const bot = new Bot(process.env.TELEGRAM_BOT_TOKEN!, {
   client: {
-    fetch: customFetch as any
-  }
+    fetch: customFetch as any,
+  },
 });
-const channelId = TELEGRAM_CHANNEL_ID;
+const channelId = parseInt(process.env.TELEGRAM_CHANNEL_ID!);
 
 // Add error handling middleware
 bot.catch((err) => {

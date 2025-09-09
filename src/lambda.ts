@@ -5,7 +5,7 @@ export const handler: ScheduledHandler = async (event) => {
   console.log("Received scheduled event:", JSON.stringify(event));
   try {
     console.log("Executing scheduled task...");
-    await executeForLast24Hours();
+    await executeForLast24Hours("english");
     console.log("Execution completed successfully");
   } catch (error) {
     console.error("Error executing scheduled task:", error);

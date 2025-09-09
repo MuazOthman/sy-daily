@@ -7,7 +7,8 @@
     "build": "rimraf .aws-sam && rimraf lambda && ts-node esbuild.config.ts",
     "predeploy": "npm run build",
     "deploy": "./deploy.sh",
-    "register-webhook": "dotenv -e .env -- ts-node src/registerTelegramWebhook.ts",
+    "register-webhook": "dotenv -e .env -- ts-node src/dev/registerTelegramWebhook.ts",
+    "serve": "dotenv -e .env -- ts-node src/dev/server.ts",
     "ts-node": "ts-node",
     "test": "vitest",
     "test:ui": "vitest --ui",
@@ -27,9 +28,9 @@
     "input": "^1.0.1",
     "jsdom": "^26.1.0",
     "lodash": "^4.17.21",
-    "openai": "^4.97.0",
+    "openai": "^5.20.0",
     "telegram": "^2.26.22",
-    "twitter-api-sdk": "^1.2.1"
+    "zod": "3.25.6"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.147",
@@ -37,6 +38,7 @@
     "@types/jsdom": "^21.1.7",
     "@types/lodash": "^4.17.20",
     "@types/node": "^22.15.11",
+    "@types/node-fetch": "^2.6.13",
     "@vitest/ui": "^3.2.4",
     "dotenv-cli": "^8.0.0",
     "esbuild": "^0.23.0",

@@ -9,6 +9,6 @@ if (simulate) {
   console.log("Running in simulate mode");
 }
 
-executeForLast24Hours(simulate).then(() => {
+executeForLast24Hours("english", simulate).then(() => {
   console.log("done");
 });
