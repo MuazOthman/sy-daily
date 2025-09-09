@@ -33,7 +33,7 @@ function formatNewsItemForTelegram(
     .map((label) => labelEmojis[label.label] || "📰")
     .join(" ");
 
-  return `- ${labelText} ${
+  return `${labelText} ${
     language === "arabic" ? item.summaryArabic : item.summaryEnglish
   } - ${item.sources
     .map(
