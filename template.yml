@@ -24,17 +24,22 @@ Parameters:
   TelegramChannelIdArabic:
     Type: String
     Description: Telegram channel ID for Arabic posts
+
 Resources:
   # S3 Bucket for storing news data between Lambda functions
   NewsDataBucket:
     Type: AWS::S3::Bucket
+    Properties:
+      NotificationConfiguration:
+        EventBridgeConfiguration:
+          EventBridgeEnabled: true # Send S3 events to EventBridge
 
-  # Lambda Function 1: Collect and Summarize
+  # Lambda Function 1: Collect and Summarize (writes JSON to S3)
   CollectAndSummarizeFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: ./lambda/CollectAndSummarize
-      Handler: collectAndSummarize.handler
+      Handler: CollectAndSummarize.handler
       Timeout: 600 # Increased timeout for web scraping and AI processing
       MemorySize: 1024
       Runtime: nodejs22.x
@@ -67,25 +72,12 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: ./lambda/PostToTelegram
-      Handler: postToTelegram.handler
+      Handler: PostToTelegram.handler
       Timeout: 60
       MemorySize: 512
       Runtime: nodejs22.x
       Architectures:
         - x86_64
-      Events:
-        S3Event:
-          Type: S3
-          Properties:
-            Bucket: !Ref NewsDataBucket
-            Events: s3:ObjectCreated:*
-            Filter:
-              S3Key:
-                Rules:
-                  - Name: prefix
-                    Value: news-data/
-                  - Name: suffix
-                    Value: .json
       Policies:
         - AWSLambdaBasicExecutionRole
         - S3ReadPolicy:
@@ -98,31 +90,32 @@ Resources:
           CONTENT_LANGUAGE: "english"
           TELEGRAM_BOT_TOKEN: !Ref TelegramBotToken
           TELEGRAM_CHANNEL_ID: !Ref TelegramChannelIdEnglish
+      Events:
+        FromEventBridge:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source: ["aws.s3"]
+              detail-type: ["Object Created"]
+              detail:
+                bucket:
+                  name: [!Ref NewsDataBucket]
+                # EventBridge supports prefix filtering; combine with a code check for ".json" if needed.
+                object:
+                  key:
+                    - prefix: "news-data/"
 
   # Lambda Function 2b: Post to Telegram (Arabic)
   PostToTelegramArabicFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: ./lambda/PostToTelegram
-      Handler: postToTelegram.handler
+      Handler: PostToTelegram.handler
       Timeout: 60
       MemorySize: 512
       Runtime: nodejs22.x
       Architectures:
         - x86_64
-      Events:
-        S3Event:
-          Type: S3
-          Properties:
-            Bucket: !Ref NewsDataBucket
-            Events: s3:ObjectCreated:*
-            Filter:
-              S3Key:
-                Rules:
-                  - Name: prefix
-                    Value: news-data/
-                  - Name: suffix
-                    Value: .json
       Policies:
         - AWSLambdaBasicExecutionRole
         - S3ReadPolicy:
@@ -135,3 +128,16 @@ Resources:
           CONTENT_LANGUAGE: "arabic"
           TELEGRAM_BOT_TOKEN: !Ref TelegramBotToken
           TELEGRAM_CHANNEL_ID: !Ref TelegramChannelIdArabic
+      Events:
+        FromEventBridge:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source: ["aws.s3"]
+              detail-type: ["Object Created"]
+              detail:
+                bucket:
+                  name: [!Ref NewsDataBucket]
+                object:
+                  key:
+                    - prefix: "news-data/"

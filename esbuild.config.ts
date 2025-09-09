@@ -4,15 +4,16 @@ import path from "path";
 
 // invoke buildSync for each file in src/lambda
 for (const file of fs.readdirSync("src/lambda")) {
+  const functionName = path.parse(file).name;
   console.log(`Building ${file}`);
   buildSync({
-    entryPoints: { [file]: `src/lambda/${file}` },
+    entryPoints: { [functionName]: `src/lambda/${file}` },
     bundle: true,
     minify: true,
     platform: "node",
     sourcemap: true,
     target: "node22",
-    outdir: `lambda/${path.parse(file).name}`,
+    outdir: `lambda/${functionName}`,
     external: ["aws-sdk", "@aws-sdk/client-s3"],
     logOverride: {
       "require-resolve-not-external": "silent",

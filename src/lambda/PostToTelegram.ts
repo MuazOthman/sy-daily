@@ -1,4 +1,4 @@
-import { S3Handler } from "aws-lambda";
+import { EventBridgeHandler } from "aws-lambda";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { TelegramBot } from "../telegram/bot";
 import {
@@ -39,53 +39,53 @@ if (parseInt(CHANNEL_ID) === null) {
   CHANNEL_ID_NUMBER = parseInt(CHANNEL_ID);
 }
 
-export const handler: S3Handler = async (event) => {
-  console.log("Received S3 event:", JSON.stringify(event));
+export const handler: EventBridgeHandler<"Object Created", any, void> = async (event) => {
+  console.log("Received EventBridge event:", JSON.stringify(event));
 
   try {
-    for (const record of event.Records) {
-      if (record.eventName.startsWith("ObjectCreated")) {
-        const bucket = record.s3.bucket.name;
-        const key = decodeURIComponent(
-          record.s3.object.key.replace(/\+/g, " ")
-        );
+    // Extract S3 details from EventBridge event
+    const detail = event.detail;
+    const bucket = detail.bucket?.name;
+    const key = detail.object?.key;
 
-        console.log(`Processing S3 object: ${bucket}/${key}`);
-
-        // Download the cached data from S3
-        const getObjectCommand = new GetObjectCommand({
-          Bucket: bucket,
-          Key: key,
-        });
-
-        const response = await s3Client.send(getObjectCommand);
-
-        if (!response.Body) {
-          throw new Error("No data received from S3");
-        }
-
-        const newsDataJson = await response.Body.transformToString();
-
-        const newsData = CollectedNewsDataSchema.parse(newsDataJson);
-
-        console.log(`Processing news data for date: ${newsData.date}`);
-
-        const formattedNews = prioritizeAndFormat(
-          newsData,
-          CONTENT_LANGUAGE,
-          "telegram"
-        );
-        if (!formattedNews) {
-          console.log("No news items found, skipping posting.");
-          continue;
-        }
-
-        console.log("Posting summary to Telegram...");
-        const bot = new TelegramBot(CHANNEL_ID_NUMBER);
-        await bot.postMessage(formattedNews);
-        console.log("Successfully posted summary to Telegram");
-      }
+    if (!bucket || !key) {
+      throw new Error("Missing bucket or key in EventBridge event detail");
     }
+
+    console.log(`Processing S3 object: ${bucket}/${key}`);
+
+    // Download the cached data from S3
+    const getObjectCommand = new GetObjectCommand({
+      Bucket: bucket,
+      Key: key,
+    });
+
+    const response = await s3Client.send(getObjectCommand);
+
+    if (!response.Body) {
+      throw new Error("No data received from S3");
+    }
+
+    const newsDataJson = await response.Body.transformToString();
+
+    const newsData = CollectedNewsDataSchema.parse(JSON.parse(newsDataJson));
+
+    console.log(`Processing news data for date: ${newsData.date}`);
+
+    const formattedNews = prioritizeAndFormat(
+      newsData,
+      CONTENT_LANGUAGE,
+      "telegram"
+    );
+    if (!formattedNews) {
+      console.log("No news items found, skipping posting.");
+      return;
+    }
+
+    console.log("Posting summary to Telegram...");
+    const bot = new TelegramBot(CHANNEL_ID_NUMBER);
+    await bot.postMessage(formattedNews);
+    console.log("Successfully posted summary to Telegram");
   } catch (error) {
     console.error("Error in PostToTelegram function:", error);
     throw error;
