@@ -57,6 +57,11 @@ npm start
 ts-node src/local.ts
 ```
 
+### Development Server
+```bash
+npm run serve     # Start development server
+```
+
 ### Testing
 ```bash
 npm test          # Run tests with Vitest
@@ -98,33 +103,38 @@ npm run sam:dev        # Full dev workflow
 
 ```
 src/
-├── lambda.ts                      # AWS Lambda handler
-├── local.ts                       # Local development entry point
-├── executeForLast24Hours.ts       # Main orchestrator function
-├── getPostsInLast24Hours.ts       # Telegram API integration for post collection
-├── processSANATelegramPost.ts     # Individual post processing
-├── extractSANAArticleContent.ts   # Content extraction from articles
-├── summarizeArabicNewsInEnglish.ts # OpenAI-powered summarization
-├── bot.ts                         # Grammy-based Telegram bot
-├── browser.ts                     # Axios + JSDOM web scraping
-├── dateUtils.ts                   # Damascus timezone utilities
-├── constants.ts                   # Configuration constants
-├── types.ts                       # TypeScript type definitions
+├── lambda.ts                       # AWS Lambda handler
+├── local.ts                        # Local development entry point
+├── executeForLast24Hours.ts        # Main orchestrator function
+├── getPostsInLast24Hours.ts        # Telegram API integration for post collection
+├── processSANATelegramPost.ts      # Individual post processing
+├── extractSANAArticleContent.ts    # Content extraction from articles
+├── summarizeAndTranslate.ts        # OpenAI-powered summarization and translation
+├── prioritizeNews.ts               # News prioritization logic
+├── formatNewsItemsForTelegram.ts   # Telegram message formatting
+├── bot.ts                          # Grammy-based Telegram bot
+├── browser.ts                      # Axios + JSDOM web scraping
+├── dateUtils.ts                    # Damascus timezone utilities
+├── constants.ts                    # Configuration constants
+├── strings.ts                      # String constants and templates
+├── types.ts                        # TypeScript type definitions
 └── dev/
-    ├── registerTelegramWebhook.ts # Webhook registration utility
-    └── server.ts                  # Development server
+    ├── registerTelegramWebhook.ts  # Webhook registration utility
+    └── server.ts                   # Development server
 
-channels.json              # Channel configuration
-template.yml              # AWS SAM template
-vitest.config.ts          # Test configuration
+channels.json               # Channel configuration
+template.yml               # AWS SAM template
+vitest.config.ts           # Test configuration
 ```
 
 ## How It Works
 
-1. **Collection**: Uses Telegram API to fetch posts from configured channels in the last 24 hours (Damascus time)
+1. **Collection**: Uses Telegram API to fetch posts from multiple configured channels in the last 24 hours (Damascus time)
 2. **Processing**: Extracts article content from linked URLs using axios and JSDOM
-3. **Summarization**: Uses OpenAI to create English summaries from Arabic content
-4. **Publishing**: Posts formatted summary to target Telegram channel via Grammy bot framework
+3. **Summarization**: Uses OpenAI to create English summaries and translations from Arabic content
+4. **Prioritization**: Analyzes and prioritizes news items based on importance and relevance
+5. **Formatting**: Formats news items into structured Telegram messages
+6. **Publishing**: Posts formatted summary to target Telegram channel via Grammy bot framework
 
 ## License
 

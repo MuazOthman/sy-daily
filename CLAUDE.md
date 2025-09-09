@@ -5,10 +5,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Development Commands
 
 - **Build**: `npm run build` - Compiles TypeScript to bundled Lambda function using esbuild
-- **Local development**: `ts-node src/local.ts` - Run the news collection and summarization locally
+- **Local development**: `npm start` or `ts-node src/local.ts` - Run the news collection and summarization locally
+- **Development server**: `npm run serve` - Start development server
 - **Deploy preparation**: `npm run predeploy` - Runs build before deployment
 - **Deploy**: `npm run deploy` - Deploys to AWS using SAM with environment variables from .env
 - **Register Telegram webhook**: `npm run register-webhook` - Sets up Telegram bot webhook
+- **Testing**: `npm test` - Run tests with Vitest
+- **Testing with UI**: `npm run test:ui` - Run tests with Vitest UI
+- **Run tests once**: `npm run test:run` - Run tests in CI mode
 
 ### AWS SAM Local Development
 
@@ -20,7 +24,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture Overview
 
-This is a Telegram bot that collects Syrian news from SANA (Syrian Arab News Agency) and posts daily summaries. The system operates on two deployment models:
+This is a Telegram bot that collects Syrian news from multiple configured Telegram channels and posts daily summaries. The system operates on two deployment models:
 
 ### AWS Lambda Deployment (Production)
 - **Entry point**: `src/lambda.ts` - AWS Lambda handler for scheduled execution
@@ -35,16 +39,20 @@ This is a Telegram bot that collects Syrian news from SANA (Syrian Arab News Age
 
 **Data Flow**:
 1. `executeForLast24Hours()` - Main orchestrator function
-2. `getSANAPostsInLast24Hours()` - Fetches recent posts from SANA Telegram channel
+2. `getPostsInLast24Hours()` - Fetches recent posts from multiple configured Telegram channels
 3. `processSANATelegramPost()` - Processes individual posts and extracts content
-4. `summarizeArabicNewsInEnglish()` - Uses OpenAI to create English summaries from Arabic content
-5. `postSummary()` - Posts formatted summary to target Telegram channel
+4. `summarizeAndTranslate()` - Uses OpenAI to create English summaries and translations from Arabic content
+5. `prioritizeNews()` - Prioritizes news items based on importance and relevance
+6. `formatNewsItemsForTelegram()` - Formats news items into structured Telegram messages
+7. `postSummary()` - Posts formatted summary to target Telegram channel
 
 **Key Modules**:
 - `bot.ts` - Grammy-based Telegram bot configuration and posting functionality
 - `browser.ts` - Axios and JSDOM-based HTML fetching and parsing for web scraping
 - `dateUtils.ts` - Damascus timezone handling for 24-hour windows
 - `constants.ts` - Channel IDs and configuration constants
+- `strings.ts` - String constants and message templates
+- `types.ts` - TypeScript type definitions
 
 ### Environment Requirements
 
