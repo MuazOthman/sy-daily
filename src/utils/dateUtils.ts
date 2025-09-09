@@ -1,6 +1,6 @@
-export function getMostRecent12AMInDamascus(): number {
+export function getMostRecent12AMInDamascus(specifiedDate?: Date): number {
   // Get current time in UTC
-  const now = new Date();
+  const now = specifiedDate || new Date();
 
   // Create date in UTC
   const dateInUTC = new Date(now);

@@ -10,4 +10,6 @@ sam deploy --no-fail-on-empty-changeset \
   "ParameterKey=TelegramApiId,ParameterValue=${TELEGRAM_API_ID}" \
   "ParameterKey=TelegramApiHash,ParameterValue=${TELEGRAM_API_HASH}" \
   "ParameterKey=SessionString,ParameterValue=${SESSION_STRING}" \
-  "ParameterKey=OpenaiApiKey,ParameterValue=${OPENAI_API_KEY}"
+  "ParameterKey=OpenaiApiKey,ParameterValue=${OPENAI_API_KEY}" \
+  "ParameterKey=TelegramChannelIdEnglish,ParameterValue=${TELEGRAM_CHANNEL_ID_ENGLISH}" \
+  "ParameterKey=TelegramChannelIdArabic,ParameterValue=${TELEGRAM_CHANNEL_ID_ARABIC}"

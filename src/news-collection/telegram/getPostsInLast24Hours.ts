@@ -4,8 +4,8 @@ import { Api } from "telegram";
 import * as readline from "readline";
 import * as fs from "fs";
 import * as path from "path";
-import { getMostRecent12AMInDamascus } from "./dateUtils";
-import { TelegramPost, ChannelConfig } from "./types";
+import { getMostRecent12AMInDamascus } from "../../utils/dateUtils";
+import { TelegramPost, ChannelConfig } from "../../types";
 
 if (!process.env.TELEGRAM_API_ID) {
   throw new Error("TELEGRAM_API_ID is not set");
@@ -117,7 +117,9 @@ async function getPostsFromChannel(
   return posts;
 }
 
-export async function getPostsInLast24Hours(): Promise<TelegramPost[]> {
+export async function getPostsInLast24Hours(
+  specifiedDate?: Date
+): Promise<TelegramPost[]> {
   const config = loadChannelConfig();
   const client = new TelegramClient(stringSession, apiId, apiHash, {
     connectionRetries: 5,
@@ -133,7 +135,7 @@ export async function getPostsInLast24Hours(): Promise<TelegramPost[]> {
 
   console.log("Telegram Client: Logged in!");
 
-  const latestDate = getMostRecent12AMInDamascus();
+  const latestDate = getMostRecent12AMInDamascus(specifiedDate);
   const earliestDate = latestDate - 60 * 60 * 24;
 
   console.log(

@@ -1,5 +1,5 @@
 import { OpenAI } from "openai";
-import { NewItemLabels, NewsResponse, NewsResponseSchema } from "./types";
+import { NewsResponse, NewsResponseSchema } from "../types";
 import { zodResponseFormat } from "openai/helpers/zod";
 
 if (!process.env.OPENAI_API_KEY) {
@@ -20,20 +20,19 @@ const systemPrompt = `You are a news editor fluent in English and Arabic. You'll
 export async function summarizeAndTranslate(
   news: string[],
   simulate = false
-): Promise<NewsResponse | null> {
+): Promise<NewsResponse> {
   if (news.length === 0) {
-    return null;
+    return { newsItems: [] };
   }
   const inputText = news.join("\n=========================\n");
   if (simulate) {
-    const mockResponse = {
+    const mockResponse: NewsResponse = {
       newsItems: [
         {
           summaryArabic: "خبر تجريبي للاختبار",
           summaryEnglish: "Simulated news item for testing",
-          labels: ["other" as const],
-          importanceScore: 50,
-          source: "https://example.com",
+          labels: [{ label: "politics", relationScore: 100 }],
+          sources: ["https://example.com"],
         },
       ],
     };
@@ -47,6 +46,7 @@ export async function summarizeAndTranslate(
     const chatCompletion = await openai.chat.completions.create({
       // model: "gpt-5-2025-08-07",
       // model: "gpt-5-mini-2025-08-07",
+      // reasoning_effort: "minimal", // supported only for reasoning models like gpt-5 and gpt-5-mini
       model: "gpt-4.1-2025-04-14",
       messages: [
         {
@@ -57,7 +57,6 @@ export async function summarizeAndTranslate(
       ],
       response_format: zodResponseFormat(NewsResponseSchema, "news_response"),
       max_completion_tokens: 20000,
-      // reasoning_effort: "minimal",
     });
     const end = Date.now();
     console.log(`🔍 Summarized and translated news items in ${end - start}ms`);
@@ -66,7 +65,7 @@ export async function summarizeAndTranslate(
     );
     const result = chatCompletion.choices[0]?.message?.content;
     if (!result) {
-      return null;
+      return { newsItems: [] };
     }
 
     // Parse and validate the response using Zod
@@ -74,6 +73,6 @@ export async function summarizeAndTranslate(
     return parsedResult;
   } catch (error) {
     console.error("Failed to get or validate LLM response:", error);
-    return null;
+    return { newsItems: [] };
   }
 }

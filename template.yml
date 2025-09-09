@@ -18,15 +18,25 @@ Parameters:
   OpenaiApiKey:
     Type: String
     NoEcho: true
+  TelegramChannelIdEnglish:
+    Type: String
+    Description: Telegram channel ID for English posts
+  TelegramChannelIdArabic:
+    Type: String
+    Description: Telegram channel ID for Arabic posts
 Resources:
-  # Lambda Function
-  NewsCollectorFunction:
+  # S3 Bucket for storing news data between Lambda functions
+  NewsDataBucket:
+    Type: AWS::S3::Bucket
+
+  # Lambda Function 1: Collect and Summarize
+  CollectAndSummarizeFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: ./lambda
-      Handler: index.handler
-      Timeout: 300 # Increased timeout for web scraping
-      MemorySize: 2048
+      CodeUri: ./lambda/CollectAndSummarize
+      Handler: collectAndSummarize.handler
+      Timeout: 600 # Increased timeout for web scraping and AI processing
+      MemorySize: 1024
       Runtime: nodejs22.x
       Architectures:
         - x86_64
@@ -35,17 +45,93 @@ Resources:
           Type: Schedule
           Properties:
             Schedule: cron(10 21 * * ? *) # Run daily at 21:10 UTC (00:10 Damascus time)
-            Description: Daily execution of the news collector function
+            Description: Daily execution of the news collection and summarization
             Enabled: true
       Policies:
         - AWSLambdaBasicExecutionRole
+        - S3WritePolicy:
+            BucketName: !Ref NewsDataBucket
       Environment:
         Variables:
           NODE_OPTIONS: --enable-source-maps
           NODE_ENV: production
           IS_LAMBDA: "true"
-          TELEGRAM_BOT_TOKEN: !Ref TelegramBotToken
+          S3_BUCKET_NAME: !Ref NewsDataBucket
           TELEGRAM_API_ID: !Ref TelegramApiId
           TELEGRAM_API_HASH: !Ref TelegramApiHash
           SESSION_STRING: !Ref SessionString
           OPENAI_API_KEY: !Ref OpenaiApiKey
+
+  # Lambda Function 2a: Post to Telegram (English)
+  PostToTelegramEnglishFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./lambda/PostToTelegram
+      Handler: postToTelegram.handler
+      Timeout: 60
+      MemorySize: 512
+      Runtime: nodejs22.x
+      Architectures:
+        - x86_64
+      Events:
+        S3Event:
+          Type: S3
+          Properties:
+            Bucket: !Ref NewsDataBucket
+            Events: s3:ObjectCreated:*
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: news-data/
+                  - Name: suffix
+                    Value: .json
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - S3ReadPolicy:
+            BucketName: !Ref NewsDataBucket
+      Environment:
+        Variables:
+          NODE_OPTIONS: --enable-source-maps
+          NODE_ENV: production
+          IS_LAMBDA: "true"
+          CONTENT_LANGUAGE: "english"
+          TELEGRAM_BOT_TOKEN: !Ref TelegramBotToken
+          TELEGRAM_CHANNEL_ID: !Ref TelegramChannelIdEnglish
+
+  # Lambda Function 2b: Post to Telegram (Arabic)
+  PostToTelegramArabicFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./lambda/PostToTelegram
+      Handler: postToTelegram.handler
+      Timeout: 60
+      MemorySize: 512
+      Runtime: nodejs22.x
+      Architectures:
+        - x86_64
+      Events:
+        S3Event:
+          Type: S3
+          Properties:
+            Bucket: !Ref NewsDataBucket
+            Events: s3:ObjectCreated:*
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: news-data/
+                  - Name: suffix
+                    Value: .json
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - S3ReadPolicy:
+            BucketName: !Ref NewsDataBucket
+      Environment:
+        Variables:
+          NODE_OPTIONS: --enable-source-maps
+          NODE_ENV: production
+          IS_LAMBDA: "true"
+          CONTENT_LANGUAGE: "arabic"
+          TELEGRAM_BOT_TOKEN: !Ref TelegramBotToken
+          TELEGRAM_CHANNEL_ID: !Ref TelegramChannelIdArabic

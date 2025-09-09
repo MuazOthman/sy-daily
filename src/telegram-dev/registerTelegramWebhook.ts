@@ -1,11 +1,15 @@
-import { bot } from "../bot";
+import { TelegramBot } from "../telegram/bot";
 
-bot.api
+const CHANNEL_ID = Number(process.env.TELEGRAM_CHANNEL_ID_ARABIC);
+
+const bot = new TelegramBot(CHANNEL_ID);
+
+bot.bot.api
   .setWebhook("https://mosquito-intent-cheetah.ngrok-free.app/webhook")
   .then(() => {
     console.log("Webhook registered");
   })
-  .catch((err) => {
+  .catch((err: any) => {
     console.error("Error registering webhook", err);
   });
 

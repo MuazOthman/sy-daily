@@ -17,7 +17,10 @@ export async function extractSANAArticleContent(url: string) {
       .join("\n\n");
     return { title, body };
   } catch (error) {
-    console.error(`Failed to extract from ${url}:`, error);
+    console.error(
+      `Failed to extract from ${url}, falling back to original content. Error:`,
+      error
+    );
     return undefined;
   }
 }

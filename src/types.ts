@@ -15,7 +15,9 @@ export type ChannelConfig = {
   channels: Channel[];
 };
 
-export type ContentLanguage = "arabic" | "english";
+export const ContentLanguages = ["arabic", "english"] as const;
+
+export type ContentLanguage = (typeof ContentLanguages)[number];
 
 export const NewItemLabels = [
   "aid",
@@ -38,9 +40,9 @@ export const NewItemLabels = [
   "technology",
 ] as const;
 
-export const NewsItemLabelSchema = z.enum(NewItemLabels);
+export type NewsItemLabel = (typeof NewItemLabels)[number];
 
-export type NewsItemLabel = z.infer<typeof NewsItemLabelSchema>;
+export const NewsItemLabelSchema = z.enum(NewItemLabels);
 
 export const NewsItemLabelRelation = z.object({
   label: NewsItemLabelSchema,
@@ -82,3 +84,16 @@ export const NewsResponseSchema = z.object({
 });
 
 export type NewsResponse = z.infer<typeof NewsResponseSchema>;
+
+export const CollectedNewsDataSchema = z.object({
+  newsResponse: NewsResponseSchema,
+  numberOfPosts: z.number(),
+  numberOfSources: z.number(),
+  date: z.string(),
+});
+
+export type CollectedNewsData = z.infer<typeof CollectedNewsDataSchema>;
+
+export const AvailableFormatters = ["telegram"] as const;
+
+export type AvailableFormatter = (typeof AvailableFormatters)[number];

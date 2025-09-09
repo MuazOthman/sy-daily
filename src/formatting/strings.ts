@@ -1,4 +1,4 @@
-import { ContentLanguage } from "./types";
+import { ContentLanguage } from "../types";
 
 export const KnownStrings = [
   "Source",
