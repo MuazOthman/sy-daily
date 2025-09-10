@@ -12,13 +12,13 @@ export const Strings: Record<
 > = {
   arabic: {
     Source: "المصدر",
-    DailyBriefingForDay: "الملخص اليومي لتاريخ",
+    DailyBriefingForDay: "الملخص اليومي لأخبار سورية لتاريخ",
     ProcessedThisManyPostsFromThisManySources:
       "بعد معالجة {numberOfPosts} منشوراً من {numberOfSources} مصدراً",
   },
   english: {
     Source: "Source",
-    DailyBriefingForDay: "Daily Briefing for",
+    DailyBriefingForDay: "Syria Daily News Briefing for",
     ProcessedThisManyPostsFromThisManySources:
       "Processed {numberOfPosts} posts from {numberOfSources} sources",
   },
