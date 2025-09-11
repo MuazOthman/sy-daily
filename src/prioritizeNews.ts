@@ -5,7 +5,7 @@ import {
   NewsItemWithImportanceScore,
 } from "./types";
 
-const NewsItemLabelWeights: Record<NewsItemLabel, number> = {
+export const NewsItemLabelWeights: Record<NewsItemLabel, number> = {
   aid: 80,
   business: 60,
   culture: 40,
@@ -15,13 +15,13 @@ const NewsItemLabelWeights: Record<NewsItemLabel, number> = {
   entertainment: 20,
   environment: 30,
   "foreign-affairs": 70,
+  "government-services": 60,
   health: 60,
   infrastructure: 70,
   politics: 60,
   president: 80,
   science: 30,
   "security-incident": 80,
-  services: 60,
   sports: 20,
   technology: 60,
 };
@@ -29,7 +29,8 @@ const NewsItemLabelWeights: Record<NewsItemLabel, number> = {
 function getWeightForLabels(labels: NewsItemLabelRelation[]): number {
   return labels.reduce(
     (acc, label) =>
-      acc + NewsItemLabelWeights[label.label] * label.relationScore,
+      // if the label is not in the NewsItemLabelWeights, give it a weight of 0.1
+      acc + (NewsItemLabelWeights[label.label] || 0.1) * label.relationScore,
     0
   );
 }

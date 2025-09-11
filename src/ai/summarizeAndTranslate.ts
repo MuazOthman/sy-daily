@@ -1,6 +1,7 @@
 import { OpenAI } from "openai";
 import { NewsResponse, NewsResponseSchema } from "../types";
 import { zodResponseFormat } from "openai/helpers/zod";
+import { CustomTerms } from "./customTerms";
 
 if (!process.env.OPENAI_API_KEY) {
   throw new Error("OPENAI_API_KEY is not set");
@@ -15,7 +16,10 @@ const systemPrompt = `You are a news editor fluent in English and Arabic. You'll
 3. Events related to the president or foreign policy should have higher importance scores.
 4. Use neutral tone in summaries.
 5. When editing the summary in Arabic, use verb-subject-object structure. DON'T USE subject-verb-object structure.
-6. Make sure to not include duplicate news items.`;
+6. Make sure to not include duplicate news items.
+7. Use the following terms/idioms when translating: ${CustomTerms.map(
+  (term) => `${term.arabic} -> ${term.english}`
+).join(", ")}`;
 
 export async function summarizeAndTranslate(
   news: string[],

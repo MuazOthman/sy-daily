@@ -26,7 +26,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture Overview
 
-This is a Telegram bot that collects Syrian news from multiple configured Telegram channels and posts daily summaries. The system operates on two deployment models and uses a split Lambda architecture for better reliability and scalability.
+This is a Telegram bot that collects Syrian news from 30+ configured Telegram channels (government and official sources defined in `channels.json`) and posts daily summaries in both English and Arabic with generated banner images. The system uses a split Lambda architecture with EventBridge for reliable message processing.
 
 ### AWS Lambda Deployment (Production) - Split Architecture
 
@@ -34,24 +34,28 @@ This is a Telegram bot that collects Syrian news from multiple configured Telegr
   - **Schedule**: Runs daily at 21:10 UTC via CloudWatch Events
   - **Timeout**: 10 minutes for web scraping and AI processing
   - **Memory**: 1GB for intensive processing
-- **PostToTelegramEnglishFunction**: `src/lambda/PostToTelegram.ts` - Posts English formatted news to Telegram
-  - **Trigger**: S3 ObjectCreated events from news data uploads
+- **PostToTelegramEnglishFunction**: `src/lambda/PostToTelegram.ts` - Posts English formatted news to Telegram with banner
+  - **Trigger**: EventBridge events from S3 ObjectCreated (via EventBridge configuration)
   - **Timeout**: 1 minute for posting
   - **Memory**: 512MB for lightweight posting
-  - **Environment**: `CONTENT_LANGUAGE=english`, `TELEGRAM_CHANNEL_ID={EnglishChannelId}`
-- **PostToTelegramArabicFunction**: `src/lambda/PostToTelegram.ts` - Posts Arabic formatted news to Telegram
-  - **Trigger**: S3 ObjectCreated events from news data uploads (same trigger as English)
+  - **Architecture**: ARM64 with font rendering layers
+  - **Environment**: `CONTENT_LANGUAGE=english`, `TELEGRAM_CHANNEL_ID={EnglishChannelId}`, `FONTCONFIG_PATH=/opt/etc/fonts`
+- **PostToTelegramArabicFunction**: `src/lambda/PostToTelegram.ts` - Posts Arabic formatted news to Telegram with banner
+  - **Trigger**: EventBridge events from S3 ObjectCreated (same trigger as English)
   - **Timeout**: 1 minute for posting
   - **Memory**: 512MB for lightweight posting
-  - **Environment**: `CONTENT_LANGUAGE=arabic`, `TELEGRAM_CHANNEL_ID={ArabicChannelId}`
+  - **Architecture**: ARM64 with font rendering layers
+  - **Environment**: `CONTENT_LANGUAGE=arabic`, `TELEGRAM_CHANNEL_ID={ArabicChannelId}`, `FONTCONFIG_PATH=/opt/etc/fonts`
 - **S3 Bucket**: Intermediary storage for news data between functions
   - **Key Format**: `news-data/{YYYY-MM-DD}.json`
   - **Lifecycle**: 30-day retention policy
 
 ### Local Development
 
-- **Entry point**: `src/local/index.ts` - Direct execution for testing
+- **Entry point**: `src/local/index.ts` - Direct execution for testing both languages
 - **Environment**: Uses dotenv for local environment variables
+- **Caching**: Uses `cache/cachedData.json` for local development to avoid re-fetching
+- **Channel Configuration**: Loads channel list from `channels.json` (30+ channels)
 
 ### Core Components
 
@@ -60,33 +64,39 @@ This is a Telegram bot that collects Syrian news from multiple configured Telegr
 **CollectAndSummarizeFunction**:
 
 1. `collectAndSummarize()` - Main function in `src/news-collection/collectAndSummarize.ts`
-   - `getPostsInLast24Hours()` - Fetches recent posts from multiple configured Telegram channels
-   - `processSANATelegramPost()` - Processes individual posts and extracts content
+   - `getPostsInLast24Hours()` - Fetches recent posts from multiple configured Telegram channels (loaded from `channels.json`)
+   - `processTelegramPost()` - Processes individual posts and extracts content from all channel types
    - `summarizeAndTranslate()` - Uses OpenAI to create English summaries and translations from Arabic content
 2. Upload processed data to S3 bucket with date-based key
 
-**PostToTelegramEnglishFunction & PostToTelegramArabicFunction** (both triggered by same S3 event):
+**PostToTelegramEnglishFunction & PostToTelegramArabicFunction** (both triggered by same EventBridge event):
 3. Download processed news data from S3
 4. `prioritizeAndFormat()` - Prioritizes news items and formats them for Telegram
    - `prioritizeNews()` - Prioritizes news items based on importance and relevance
    - `formatNewsItemsForTelegram()` - Formats news items into structured Telegram messages (language determined by `CONTENT_LANGUAGE` env var)
-5. `postSummary()` - Posts formatted summary to target Telegram channel in respective language
+5. `generateNewsBanner()` - Creates banner image based on most frequent news label
+6. `TelegramUser.sendPhotoToChannel()` - Posts banner image with formatted summary to target Telegram channel
 
 **Local Development Flow**:
 
-- `src/local/index.ts` - Main orchestrator function that combines all steps for local testing
+- `src/local/index.ts` - Main orchestrator function that posts to both English and Arabic channels for local testing
 
 **Key Modules**:
 
 - `src/telegram/bot.ts` - Grammy-based Telegram bot configuration and posting functionality
+- `src/telegram/user.ts` - Telegram user client for channel posting with image support
 - `src/news-collection/browser.ts` - Axios and JSDOM-based HTML fetching and parsing for web scraping
+- `src/news-collection/telegram/getPostsInLast24Hours.ts` - Multi-channel post fetching with dynamic channel configuration
 - `src/utils/dateUtils.ts` - Damascus timezone handling for 24-hour windows
 - `src/formatting/strings.ts` - String constants and message templates
-- `src/types.ts` - TypeScript type definitions
-- `src/prioritizeNews.ts` - News prioritization logic
+- `src/types.ts` - TypeScript type definitions including channel configuration
+- `src/prioritizeNews.ts` - News prioritization logic with label weighting
 - `src/prioritizeAndFormat.ts` - Combined prioritization and formatting logic
 - `src/formatting/telegramNewsFormatter.ts` - Telegram message formatting
 - `src/ai/summarizeAndTranslate.ts` - OpenAI-powered summarization and translation
+- `src/newsBanner.ts` - Banner image generation for news summaries
+- `src/mostFrequentLabel.ts` - Determines most frequent news category for banners
+- `channels.json` - Configuration file defining 30+ Telegram channels to monitor
 
 ### Environment Requirements
 
@@ -111,7 +121,9 @@ The application requires these environment variables:
 Defined in `template.yml` (SAM template):
 
 - Multiple Lambda functions with split architecture:
-  - CollectAndSummarize: 10-minute timeout and 1GB memory
-  - PostToTelegram: 1-minute timeout and 512MB memory
-- Scheduled execution via CloudWatch Events
-- Parameter-based environment variable injection
+  - CollectAndSummarize: 10-minute timeout, 1GB memory, x86_64 architecture
+  - PostToTelegramEnglish/Arabic: 1-minute timeout, 512MB memory, ARM64 architecture
+- EventBridge integration for S3 ObjectCreated events
+- Font rendering layers for ARM64 functions (amazon_linux_fonts, stix-fonts)
+- Scheduled execution via CloudWatch Events (21:10 UTC daily)
+- Parameter-based environment variable injection with language-specific configurations

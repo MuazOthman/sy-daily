@@ -3,6 +3,7 @@ import {
   AvailableFormatter,
   CollectedNewsData,
   ContentLanguage,
+  FormattedNewsData,
 } from "./types";
 import { Formatters } from "./formatting";
 
@@ -12,7 +13,7 @@ export function prioritizeAndFormat(
   newsData: CollectedNewsData,
   language: ContentLanguage,
   formatter: AvailableFormatter
-): string | undefined {
+): FormattedNewsData | undefined {
   if (
     !newsData.newsResponse ||
     !newsData.newsResponse.newsItems ||

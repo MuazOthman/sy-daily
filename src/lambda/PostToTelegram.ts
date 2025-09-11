@@ -8,6 +8,10 @@ import {
   ContentLanguages,
 } from "../types";
 import { prioritizeAndFormat } from "../prioritizeAndFormat";
+import { NewsItemLabelWeights } from "../prioritizeNews";
+import { getMostFrequentLabel } from "../mostFrequentLabel";
+import { TelegramUser } from "../telegram/user";
+import { generateNewsBanner } from "../newsBanner";
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION || "us-east-1",
@@ -39,7 +43,9 @@ if (parseInt(CHANNEL_ID) === null) {
   CHANNEL_ID_NUMBER = parseInt(CHANNEL_ID);
 }
 
-export const handler: EventBridgeHandler<"Object Created", any, void> = async (event) => {
+export const handler: EventBridgeHandler<"Object Created", any, void> = async (
+  event
+) => {
   console.log("Received EventBridge event:", JSON.stringify(event));
 
   try {
@@ -82,9 +88,26 @@ export const handler: EventBridgeHandler<"Object Created", any, void> = async (e
       return;
     }
 
+    const mostFrequentLabel = getMostFrequentLabel(formattedNews.newsItems);
+    console.log(`🔍 Most frequent label: ${mostFrequentLabel}`);
+
     console.log("Posting summary to Telegram...");
-    const bot = new TelegramBot(CHANNEL_ID_NUMBER);
-    await bot.postMessage(formattedNews);
+
+    const banner = await generateNewsBanner(
+      mostFrequentLabel,
+      newsData.date,
+      CONTENT_LANGUAGE
+    );
+
+    const user = new TelegramUser();
+    await user.login();
+    await user.sendPhotoToChannel(CHANNEL_ID_NUMBER, banner, {
+      caption: formattedNews.message,
+      parseMode: "html",
+      silent: false,
+    });
+    await user.logout();
+
     console.log("Successfully posted summary to Telegram");
   } catch (error) {
     console.error("Error in PostToTelegram function:", error);

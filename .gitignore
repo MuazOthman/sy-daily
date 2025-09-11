@@ -408,3 +408,6 @@ layers
 .aws-sam/**
 /cache
 /cache/**
+/demo
+/demo/**
+.DS_Store

@@ -1,4 +1,4 @@
-import { Bot } from "grammy";
+import { Bot, InputFile } from "grammy";
 
 export class TelegramBot {
   bot: Bot;
@@ -84,6 +84,14 @@ export class TelegramBot {
       link_preview_options: {
         is_disabled: true,
       },
+    });
+    console.log("Message posted to Telegram.");
+  }
+
+  async postPhoto(buffer: Buffer, caption: string) {
+    await this.bot.api.sendPhoto(this.channelId, new InputFile(buffer), {
+      parse_mode: "HTML",
+      caption: caption,
     });
     console.log("Message posted to Telegram.");
   }

@@ -77,7 +77,10 @@ Resources:
       MemorySize: 512
       Runtime: nodejs22.x
       Architectures:
-        - x86_64
+        - arm64
+      Layers:
+        - arn:aws:lambda:us-east-1:347599033421:layer:amazon_linux_fonts:1
+        - arn:aws:lambda:us-east-1:347599033421:layer:stix-fonts:1
       Policies:
         - AWSLambdaBasicExecutionRole
         - S3ReadPolicy:
@@ -88,7 +91,10 @@ Resources:
           NODE_ENV: production
           IS_LAMBDA: "true"
           CONTENT_LANGUAGE: "english"
-          TELEGRAM_BOT_TOKEN: !Ref TelegramBotToken
+          FONTCONFIG_PATH: /opt/etc/fonts
+          TELEGRAM_API_ID: !Ref TelegramApiId
+          TELEGRAM_API_HASH: !Ref TelegramApiHash
+          SESSION_STRING: !Ref SessionString
           TELEGRAM_CHANNEL_ID: !Ref TelegramChannelIdEnglish
       Events:
         FromEventBridge:
@@ -115,7 +121,10 @@ Resources:
       MemorySize: 512
       Runtime: nodejs22.x
       Architectures:
-        - x86_64
+        - arm64
+      Layers:
+        - arn:aws:lambda:us-east-1:347599033421:layer:amazon_linux_fonts:1
+        - arn:aws:lambda:us-east-1:347599033421:layer:stix-fonts:1
       Policies:
         - AWSLambdaBasicExecutionRole
         - S3ReadPolicy:
@@ -126,7 +135,10 @@ Resources:
           NODE_ENV: production
           IS_LAMBDA: "true"
           CONTENT_LANGUAGE: "arabic"
-          TELEGRAM_BOT_TOKEN: !Ref TelegramBotToken
+          FONTCONFIG_PATH: /opt/etc/fonts
+          TELEGRAM_API_ID: !Ref TelegramApiId
+          TELEGRAM_API_HASH: !Ref TelegramApiHash
+          SESSION_STRING: !Ref SessionString
           TELEGRAM_CHANNEL_ID: !Ref TelegramChannelIdArabic
       Events:
         FromEventBridge:

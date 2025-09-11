@@ -1,37 +1,10 @@
 import { TelegramClient } from "telegram";
-import { StringSession } from "telegram/sessions";
 import { Api } from "telegram";
-import * as readline from "readline";
 import * as fs from "fs";
 import * as path from "path";
 import { getMostRecent12AMInDamascus } from "../../utils/dateUtils";
 import { TelegramPost, ChannelConfig } from "../../types";
-
-if (!process.env.TELEGRAM_API_ID) {
-  throw new Error("TELEGRAM_API_ID is not set");
-}
-if (!process.env.TELEGRAM_API_HASH) {
-  throw new Error("TELEGRAM_API_HASH is not set");
-}
-if (!process.env.SESSION_STRING) {
-  throw new Error("SESSION_STRING is not set (required in production)");
-}
-const apiId = parseInt(process.env.TELEGRAM_API_ID!);
-const apiHash = process.env.TELEGRAM_API_HASH!;
-const stringSession = new StringSession(process.env.SESSION_STRING || "");
-
-function ask(question: string): Promise<string> {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-  return new Promise((resolve) =>
-    rl.question(question, (answer) => {
-      rl.close();
-      resolve(answer.trim());
-    })
-  );
-}
+import { TelegramUser } from "../../telegram/user";
 
 function loadChannelConfig(): ChannelConfig {
   try {
@@ -121,17 +94,8 @@ export async function getPostsInLast24Hours(
   specifiedDate?: Date
 ): Promise<TelegramPost[]> {
   const config = loadChannelConfig();
-  const client = new TelegramClient(stringSession, apiId, apiHash, {
-    connectionRetries: 5,
-  });
-
-  await client.start({
-    phoneNumber: async () => await ask("Phone number (with country code): "),
-    password: async () =>
-      await ask("Two-step verification password (if enabled): "),
-    phoneCode: async () => await ask("Code you received: "),
-    onError: (err) => console.log("Login error:", err),
-  });
+  const user = new TelegramUser();
+  const client = await user.login();
 
   console.log("Telegram Client: Logged in!");
 
@@ -172,7 +136,7 @@ export async function getPostsInLast24Hours(
 
   console.log(`\n📝 Total posts found across all channels: ${allPosts.length}`);
 
-  await client.disconnect();
+  await user.logout();
 
   return allPosts;
 }

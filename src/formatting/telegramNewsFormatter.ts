@@ -1,5 +1,10 @@
 import { Strings } from "./strings";
-import { CollectedNewsData, ContentLanguage, NewsItem } from "../types";
+import {
+  CollectedNewsData,
+  ContentLanguage,
+  FormattedNewsData,
+  NewsItem,
+} from "../types";
 import { measureTelegramRenderedHtml } from "./measureTelegramRenderedHtml";
 
 const labelEmojis = {
@@ -10,6 +15,7 @@ const labelEmojis = {
   aid: "🤝",
   infrastructure: "🏢",
   education: "🎓",
+  "government-services": "🔧",
   health: "🏥",
   economy: "💰",
   environment: "🌍",
@@ -22,7 +28,6 @@ const labelEmojis = {
   entertainment: "🎥",
   travel: "🌏",
   food: "🍔",
-  services: "🔧",
 };
 
 function formatNewsItemForTelegram(
@@ -55,7 +60,7 @@ export function telegramNewsFormatter({
 }: {
   language: ContentLanguage;
   skipItems?: number;
-} & CollectedNewsData): string {
+} & CollectedNewsData): FormattedNewsData {
   const includedItems =
     skipItems > 0
       ? newsResponse.newsItems.slice(0, -skipItems)
@@ -90,5 +95,5 @@ ${formattedNewsItems}`;
       skipItems: skipItems + 1,
     });
   }
-  return msgHtml;
+  return { message: msgHtml, newsItems: includedItems };
 }

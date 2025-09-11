@@ -29,13 +29,13 @@ export const NewItemLabels = [
   "entertainment",
   "environment",
   "foreign-affairs",
+  "government-services",
   "health",
   "infrastructure",
   "politics",
   "president",
   "science",
   "security-incident",
-  "services",
   "sports",
   "technology",
 ] as const;
@@ -97,3 +97,8 @@ export type CollectedNewsData = z.infer<typeof CollectedNewsDataSchema>;
 export const AvailableFormatters = ["telegram"] as const;
 
 export type AvailableFormatter = (typeof AvailableFormatters)[number];
+
+export type FormattedNewsData = {
+  message: string;
+  newsItems: NewsItem[];
+};

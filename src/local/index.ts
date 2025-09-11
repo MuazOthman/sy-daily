@@ -8,8 +8,12 @@ import fs from "fs";
 import path from "path";
 import { prioritizeAndFormat } from "../prioritizeAndFormat";
 import { collectAndSummarize } from "../news-collection/collectAndSummarize";
+import { NewsItemLabelWeights } from "../prioritizeNews";
+import { generateNewsBanner } from "../newsBanner";
+import { TelegramUser } from "../telegram/user";
+import { getMostFrequentLabel } from "../mostFrequentLabel";
 
-const CACHE_FILE = path.join(__dirname, "..", "..", "cache", "cachedData.json");
+const CACHE_FILE = path.join(process.cwd(), "cache", "cachedData.json");
 
 export async function executeForLast24Hours(
   language: ContentLanguage,
@@ -59,6 +63,10 @@ export async function executeForLast24Hours(
     return;
   }
 
+  const mostFrequentLabel = getMostFrequentLabel(formattedNews.newsItems);
+
+  console.log(`🔍 Most frequent label: ${mostFrequentLabel}`);
+
   if (simulate) {
     console.log(formattedNews);
     console.log("\n--- Raw News Items ---");
@@ -68,9 +76,20 @@ export async function executeForLast24Hours(
 
   await fs.promises.writeFile(CACHE_FILE, JSON.stringify(cachedData, null, 2));
 
-  const bot = new TelegramBot(channelId);
+  const banner = await generateNewsBanner(mostFrequentLabel, date, language);
 
-  await bot.postMessage(formattedNews);
+  const user = new TelegramUser();
+  await user.login();
+  await user.sendPhotoToChannel(channelId, banner, {
+    caption: formattedNews.message,
+    parseMode: "html",
+    silent: false,
+  });
+  await user.logout();
+
+  // const bot = new TelegramBot(channelId);
+
+  // await bot.postPhoto(banner, formattedNews.message);
 }
 
 const simulate = false;

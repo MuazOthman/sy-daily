@@ -34,4 +34,7 @@ fs.copyFileSync(
   "lambda/CollectAndSummarize/xhr-sync-worker.js"
 );
 
+// copy assets folder and its contents to lambda/PostToTelegram
+fs.cpSync("assets", "lambda/PostToTelegram/assets", { recursive: true });
+
 console.log("Lambda build complete");
