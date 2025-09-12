@@ -34,7 +34,7 @@ const CONTENT_LANGUAGE = process.env.CONTENT_LANGUAGE as ContentLanguage;
 
 let CHANNEL_ID_NUMBER: number;
 
-if (parseInt(CHANNEL_ID) === null) {
+if (isNaN(parseInt(CHANNEL_ID))) {
   throw new Error("TELEGRAM_CHANNEL_ID is not a valid number");
 } else {
   CHANNEL_ID_NUMBER = parseInt(CHANNEL_ID);
@@ -94,7 +94,7 @@ export const handler: EventBridgeHandler<"Object Created", any, void> = async (
     const bannerKey = `composedBanners/${CONTENT_LANGUAGE}/${mostFrequentLabel}.jpg`;
     const fallbackKey = `composedBanners/${CONTENT_LANGUAGE}/other.jpg`;
     console.log(`Fetching banner from S3: ${bannerKey}`);
-    
+
     let bannerResponse;
     try {
       const getBannerCommand = new GetObjectCommand({
@@ -103,22 +103,29 @@ export const handler: EventBridgeHandler<"Object Created", any, void> = async (
       });
       bannerResponse = await s3Client.send(getBannerCommand);
     } catch (error) {
-      console.log(`Banner not found at ${bannerKey}, falling back to ${fallbackKey}`);
+      console.log(
+        `Banner not found at ${bannerKey}, falling back to ${fallbackKey}`
+      );
       const getFallbackCommand = new GetObjectCommand({
         Bucket: bucket,
         Key: fallbackKey,
       });
       bannerResponse = await s3Client.send(getFallbackCommand);
     }
-    
+
     if (!bannerResponse.Body) {
-      throw new Error(`No banner found at S3 keys: ${bannerKey} or ${fallbackKey}`);
+      throw new Error(
+        `No banner found at S3 keys: ${bannerKey} or ${fallbackKey}`
+      );
     }
 
     const bannerBuffer = await bannerResponse.Body.transformToByteArray();
-    
+
     // Add date to the banner
-    const banner = await addDateToBanner(Buffer.from(bannerBuffer), newsData.date);
+    const banner = await addDateToBanner(
+      Buffer.from(bannerBuffer),
+      newsData.date
+    );
 
     const user = new TelegramUser();
     await user.login();
