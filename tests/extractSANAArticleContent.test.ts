@@ -64,7 +64,9 @@ describe("extractSANAArticleContent", () => {
     }));
 
     // Dynamically import the module under test after mocking
-    const module = await import("../src/extractSANAArticleContent");
+    const module = await import(
+      "../src/news-collection/extractSANAArticleContent"
+    );
     extractSANAArticleContent = module.extractSANAArticleContent;
   });
 
@@ -92,7 +94,9 @@ describe("extractSANAArticleContent", () => {
       describe(`sample: ${sample.name}`, () => {
         beforeEach(async () => {
           // Mock fetchAndParseHTML to return the sample HTML as a Document
-          mockFetchAndParseHTML.mockResolvedValue(mockDocumentFromHTML(sample.html));
+          mockFetchAndParseHTML.mockResolvedValue(
+            mockDocumentFromHTML(sample.html)
+          );
         });
 
         it("should extract article content successfully", async () => {
@@ -124,8 +128,10 @@ describe("extractSANAArticleContent", () => {
   describe("edge cases", () => {
     it("should handle empty title and body", async () => {
       const mockUrl = "https://sana.sy/?p=2215080";
-      
-      mockFetchAndParseHTML.mockResolvedValue(mockDocumentFromHTML("<html><body></body></html>"));
+
+      mockFetchAndParseHTML.mockResolvedValue(
+        mockDocumentFromHTML("<html><body></body></html>")
+      );
 
       const result = await extractSANAArticleContent(mockUrl);
 
@@ -134,10 +140,12 @@ describe("extractSANAArticleContent", () => {
 
     it("should handle missing title element", async () => {
       const mockUrl = "https://sana.sy/?p=2215080";
-      
-      mockFetchAndParseHTML.mockResolvedValue(mockDocumentFromHTML(
-        '<html><body><div class="entry-content rbct"><p>Test body</p></div></body></html>'
-      ));
+
+      mockFetchAndParseHTML.mockResolvedValue(
+        mockDocumentFromHTML(
+          '<html><body><div class="entry-content rbct"><p>Test body</p></div></body></html>'
+        )
+      );
 
       const result = await extractSANAArticleContent(mockUrl);
 
@@ -147,10 +155,12 @@ describe("extractSANAArticleContent", () => {
 
     it("should handle missing paragraph elements", async () => {
       const mockUrl = "https://sana.sy/?p=2215080";
-      
-      mockFetchAndParseHTML.mockResolvedValue(mockDocumentFromHTML(
-        '<html><body><h1 class="s-title">Test Title</h1></body></html>'
-      ));
+
+      mockFetchAndParseHTML.mockResolvedValue(
+        mockDocumentFromHTML(
+          '<html><body><h1 class="s-title">Test Title</h1></body></html>'
+        )
+      );
 
       const result = await extractSANAArticleContent(mockUrl);
 
