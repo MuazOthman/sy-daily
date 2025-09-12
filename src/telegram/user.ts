@@ -20,7 +20,9 @@ export class TelegramUser {
       throw new Error("TELEGRAM_API_HASH is not set");
     }
     if (!process.env.SESSION_STRING) {
-      throw new Error("SESSION_STRING is not set (required in production)");
+      throw new Error(
+        "SESSION_STRING is not set (required in production, disable this check in local development for the first time you run the app)"
+      );
     }
     const apiId = parseInt(process.env.TELEGRAM_API_ID!);
     const apiHash = process.env.TELEGRAM_API_HASH!;

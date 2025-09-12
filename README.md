@@ -43,19 +43,45 @@ A Telegram bot that automatically collects Syrian news from 30+ Telegram channel
 - Uses dotenv for environment variables
 - Local caching system via `cache/cachedData.json` to avoid re-fetching during development
 
-## Setup
+## Quick Start
 
 ### Prerequisites
 
 - Node.js 22.x
-- AWS CLI (for deployment)
-- SAM CLI (for AWS deployment)
+- Yarn
+- Git
+- A way to tunnel your local server to the internet (e.g. [ngrok](https://ngrok.com/))
+- A testing Telegram channel to post the summaries to (you can use the same channel for both languages)
+- A Telegram bot token (you can get it from [@BotFather](https://t.me/BotFather))
+- An AI API key (e.g. [OpenAI](https://openai.com/) or [Anthropic](https://www.anthropic.com/))
 
-### Environment Variables
+### Installation
 
-Create a `.env` file with:
+```bash
+# Clone the repository
+git clone https://github.com/your-username/sy-daily.git
+cd sy-daily
+
+# Install dependencies
+yarn install
+```
+
+### Environment Setup
+
+**Required Credentials**:
+
+- **Telegram Bot Token**: Get from [@BotFather](https://t.me/BotFather)
+- **Telegram API Credentials**: Get from [my.telegram.org](https://my.telegram.org)
+- **Session String**: Generated when you first run the app with valid API credentials. You leave it blank in local development for the first time you run the app, but make sure to temporarily disable the check in the `src/telegram/user.ts` file.
+- **AI API Key**: Either OpenAI or Anthropic API key for content processing
+- **Channel IDs**: Telegram channel IDs where you want to post the summaries
+
+### Running Locally
+
+1. **Create environment file**: Copy `.env.example` to `.env` and fill in your credentials.
 
 ```env
+DEV_PUBLIC_SERVER=your_public_server_url
 TELEGRAM_BOT_TOKEN=your_bot_token
 TELEGRAM_API_ID=your_api_id
 TELEGRAM_API_HASH=your_api_hash
@@ -72,40 +98,61 @@ TELEGRAM_CHANNEL_ID_ENGLISH=your_english_channel_id
 TELEGRAM_CHANNEL_ID_ARABIC=your_arabic_channel_id
 ```
 
-### Installation
+1. **Create or identify your Telegram channel IDs**:
+
+You can find your channel ID (typically a negative number) by starting the Telegram bot in your local environment
 
 ```bash
-npm install
+yarn run telegram:serve
+```
+
+then register the webhook
+
+```bash
+yarn run telegram:register-webhook
+```
+
+Note: you need to have a way to tunnel your local server to the internet (e.g. [ngrok](https://ngrok.com/)), that you need to set in the `DEV_PUBLIC_SERVER` environment variable.
+
+Once the webhook is registered, you can send a message to the channel and see the channel ID in the console output.
+
+3. **Run the bot locally**:
+
+```bash
+# Start the news collection and posting process
+yarn start
+
+# This will:
+# 1. Collect news from 30+ configured Telegram channels
+# 2. Process and summarize the content using AI
+# 3. Generate banner images for both languages
+# 4. Post formatted summaries to your configured channels
+```
+
+Notes:
+
+- The first time you run the app, it will persist the cache in the `cache/cachedData.json` file. This will be used to skip the collection and summarization process the next time you run the app, and will speed up the process and save on the AI credits. You can delete the file to start fresh.
+- The first time you run the app, it will interactively ask you to enter your Telegram user credentials to acquire a session string. You can subsequently use the `SESSION_STRING` environment variable to avoid this step. Make sure to temporarily disable the check in the `src/telegram/user.ts` file and set the `SESSION_STRING` environment variable then re-enable the check.
+
+### Testing Your Setup
+
+```bash
+# Run tests to ensure everything works
+yarn test
+
+# Test with UI
+yarn run test:ui
+
+# Build to check for TypeScript errors
+yarn run build
 ```
 
 ## Development
 
-### Local Testing
-
-```bash
-npm start
-# or directly:
-ts-node src/local/index.ts
-```
-
 ### Development Server
 
 ```bash
-npm run telegram:serve     # Start Telegram development server
-```
-
-### Testing
-
-```bash
-npm test          # Run tests with Vitest
-npm run test:ui   # Run tests with UI
-npm run test:run  # Run tests once
-```
-
-### Build
-
-```bash
-npm run build
+yarn run telegram:serve     # Start Telegram development server
 ```
 
 ### Banner Generation
@@ -116,6 +163,13 @@ npm run banners:update     # Update all composed banner variants
 ```
 
 ## Deployment
+
+### Prerequisites
+
+- AWS Account
+- AWS CLI (configured with the appropriate permissions)
+- SAM CLI
+- Docker
 
 ### Prepare for Deployment
 

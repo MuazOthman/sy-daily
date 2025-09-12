@@ -5,6 +5,7 @@
   "scripts": {
     "start": "ts-node src/local/index.ts",
     "build": "rimraf .aws-sam && rimraf lambda && ts-node esbuild.config.ts",
+    "lint": "tsc --noEmit",
     "banners:compose": "ts-node src/banner/composeBanners.ts",
     "banners:update": "rimraf composedBanners && ./updateComposedBanners.sh",
     "predeploy": "npm run build",

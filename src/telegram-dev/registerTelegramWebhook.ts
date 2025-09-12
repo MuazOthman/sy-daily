@@ -5,7 +5,7 @@ const CHANNEL_ID = Number(process.env.TELEGRAM_CHANNEL_ID_ARABIC);
 const bot = new TelegramBot(CHANNEL_ID);
 
 bot.bot.api
-  .setWebhook("https://mosquito-intent-cheetah.ngrok-free.app/webhook")
+  .setWebhook(`${process.env.DEV_PUBLIC_SERVER}/webhook`)
   .then(() => {
     console.log("Webhook registered");
   })
