@@ -2,6 +2,11 @@
 
 A Telegram bot that automatically collects Syrian news from 30+ Telegram channels (government and official sources), using AI to summarize, translate, label, and prioritize the content before posting daily summaries with generated banner images in both English and Arabic.
 
+## Telegram Channels
+
+📢 **English Channel**: [@SyriaDailyEN](https://t.me/SyriaDailyEN)  
+📢 **Arabic Channel**: [@SyriaDailyAR](https://t.me/SyriaDailyAR)
+
 ## Features
 
 - **Multi-channel Collection**: Monitors 30+ configurable Telegram channels from `channels.json`
