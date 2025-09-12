@@ -1,13 +1,7 @@
-import { OpenAI } from "openai";
+import { generateObject } from "ai";
 import { NewsResponse, NewsResponseSchema } from "../types";
-import { zodResponseFormat } from "openai/helpers/zod";
 import { CustomTerms } from "./customTerms";
-
-if (!process.env.OPENAI_API_KEY) {
-  throw new Error("OPENAI_API_KEY is not set");
-}
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+import { getLLMProvider } from "./getLLMProvider";
 
 const systemPrompt = `You are a news editor fluent in English and Arabic. You'll be given Arabic news snippets from official sources posted in the last 24 hours. Your task is to create a complete comprehensive list of news items but with duplicates removed. Follow these rules:
 
@@ -47,34 +41,25 @@ export async function summarizeAndTranslate(
   try {
     console.log("🔍 Summarizing and translating news items");
     const start = Date.now();
-    const chatCompletion = await openai.chat.completions.create({
-      // model: "gpt-5-2025-08-07",
-      // model: "gpt-5-mini-2025-08-07",
-      // reasoning_effort: "minimal", // supported only for reasoning models like gpt-5 and gpt-5-mini
-      model: "gpt-4.1-2025-04-14",
-      messages: [
-        {
-          role: "system",
-          content: systemPrompt,
-        },
-        { role: "user", content: inputText },
-      ],
-      response_format: zodResponseFormat(NewsResponseSchema, "news_response"),
-      max_completion_tokens: 20000,
+    const model = getLLMProvider();
+
+    const result = await (generateObject as any)({
+      model,
+      system: systemPrompt,
+      prompt: inputText,
+      schema: NewsResponseSchema,
+      maxTokens: 20000,
     });
+
+    const { object: newsResponse, usage } = result;
+
     const end = Date.now();
     console.log(`🔍 Summarized and translated news items in ${end - start}ms`);
     console.log(
-      `Model used: ${chatCompletion.model}. Input tokens: ${chatCompletion.usage?.prompt_tokens}. Output tokens: ${chatCompletion.usage?.completion_tokens}. Total tokens: ${chatCompletion.usage?.total_tokens}.`
+      `Model used: ${model.modelId}. Usage: ${JSON.stringify(usage)}`
     );
-    const result = chatCompletion.choices[0]?.message?.content;
-    if (!result) {
-      return { newsItems: [] };
-    }
 
-    // Parse and validate the response using Zod
-    const parsedResult = NewsResponseSchema.parse(JSON.parse(result));
-    return parsedResult;
+    return newsResponse;
   } catch (error) {
     console.error("Failed to get or validate LLM response:", error);
     return { newsItems: [] };

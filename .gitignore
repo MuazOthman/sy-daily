@@ -411,3 +411,4 @@ layers
 /demo
 /demo/**
 .DS_Store
+**/.DS_Store

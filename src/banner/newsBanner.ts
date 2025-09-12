@@ -1,5 +1,3 @@
-// svg-compositor.ts
-// npm i sharp
 import sharp from "sharp";
 
 /** ---- Inputs & Types ----------------------------------------------------- */
@@ -364,8 +362,12 @@ export async function convertSvgToJpg(
 
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
-import { ContentLanguage } from "./types";
-import { Strings } from "./formatting/strings";
+import { ContentLanguage } from "../types";
+import { Strings } from "../formatting/strings";
+
+const aspectRatio = 64 / 27;
+const width = 960;
+const height = width / aspectRatio;
 
 export async function generateNewsBanner(
   label: string,
@@ -385,10 +387,6 @@ export async function generateNewsBanner(
   const sticker = readFileSync(
     path.resolve(process.cwd(), "assets", "telegram-logo.png")
   );
-
-  const aspectRatio = 64 / 27;
-  const width = 960;
-  const height = width / aspectRatio;
 
   const svg = generateSvg({
     aspectRatio: "64:27",
@@ -448,7 +446,6 @@ export async function generateNewsBanner(
         height,
         fill: "rgba(255,255,255,0.50)",
       },
-
       // Multiline Arabic headline (centered)
       {
         type: "text",
@@ -464,9 +461,7 @@ export async function generateNewsBanner(
         fontFamily: language === "arabic" ? "NotoNaskhArabic" : undefined,
         bidiOverride: language === "arabic",
         fill: "#000000",
-        // fontFamily: "Tahoma",
       },
-
       {
         type: "text",
         text: date,
@@ -481,7 +476,6 @@ export async function generateNewsBanner(
         bidiOverride: false,
         fill: "#000000",
       },
-
       // Bottom-right logo
       {
         type: "image",
@@ -493,7 +487,6 @@ export async function generateNewsBanner(
         preserve: "meet",
         cornerRadiusPx: 20,
       },
-
       // Another sticker above the logo
       {
         type: "image",
@@ -505,7 +498,6 @@ export async function generateNewsBanner(
         preserve: "meet",
         opacity: 0.95,
       },
-
       {
         type: "text",
         text: `https://t.me/SyriaDaily${language === "arabic" ? "AR" : "EN"}`,
@@ -516,6 +508,36 @@ export async function generateNewsBanner(
         lineHeight: 1.35,
         maxLines: 5,
         anchor: "start", // center around x
+        direction: "ltr",
+        bidiOverride: false,
+        fill: "#000000",
+      },
+    ],
+  });
+
+  const jpg = await convertSvgToJpg(svg, 90);
+  return jpg;
+}
+
+export async function addDateToBanner(banner: Buffer, date: string) {
+  const svg = generateSvg({
+    aspectRatio: "64:27",
+    width: 960,
+    baseBackground: { data: banner, mime: "image/jpeg" },
+    defaults: {
+      fontFamily: "Verdana, Arial, Helvetica, sans-serif",
+    },
+    elements: [
+      {
+        type: "text",
+        text: date,
+        x: width / 2,
+        y: height / 2,
+        maxWidth: 2000,
+        fontSize: 72,
+        lineHeight: 1.35,
+        maxLines: 5,
+        anchor: "middle", // center around x
         direction: "ltr",
         bidiOverride: false,
         fill: "#000000",

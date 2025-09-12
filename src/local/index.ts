@@ -1,15 +1,13 @@
 import { config } from "dotenv";
 config();
 
-import { TelegramBot } from "../telegram/bot";
 import { getMostRecent12AMInDamascus } from "../utils/dateUtils";
 import { CollectedNewsData, ContentLanguage } from "../types";
 import fs from "fs";
 import path from "path";
 import { prioritizeAndFormat } from "../prioritizeAndFormat";
 import { collectAndSummarize } from "../news-collection/collectAndSummarize";
-import { NewsItemLabelWeights } from "../prioritizeNews";
-import { generateNewsBanner } from "../newsBanner";
+import { generateNewsBanner } from "../banner/newsBanner";
 import { TelegramUser } from "../telegram/user";
 import { getMostFrequentLabel } from "../mostFrequentLabel";
 
@@ -99,12 +97,12 @@ if (simulate) {
 }
 
 async function postSummaries() {
-  await executeForLast24Hours(
-    "arabic",
-    parseInt(process.env.TELEGRAM_CHANNEL_ID_ARABIC!),
-    simulate
-  );
-  console.log("Posted Arabic summary");
+  // await executeForLast24Hours(
+  //   "arabic",
+  //   parseInt(process.env.TELEGRAM_CHANNEL_ID_ARABIC!),
+  //   simulate
+  // );
+  // console.log("Posted Arabic summary");
 
   await executeForLast24Hours(
     "english",

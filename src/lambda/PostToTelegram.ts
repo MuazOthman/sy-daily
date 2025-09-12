@@ -1,17 +1,14 @@
 import { EventBridgeHandler } from "aws-lambda";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
-import { TelegramBot } from "../telegram/bot";
 import {
-  CollectedNewsData,
   CollectedNewsDataSchema,
   ContentLanguage,
   ContentLanguages,
 } from "../types";
 import { prioritizeAndFormat } from "../prioritizeAndFormat";
-import { NewsItemLabelWeights } from "../prioritizeNews";
 import { getMostFrequentLabel } from "../mostFrequentLabel";
 import { TelegramUser } from "../telegram/user";
-import { generateNewsBanner } from "../newsBanner";
+import { addDateToBanner } from "../banner/newsBanner";
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION || "us-east-1",
@@ -93,11 +90,35 @@ export const handler: EventBridgeHandler<"Object Created", any, void> = async (
 
     console.log("Posting summary to Telegram...");
 
-    const banner = await generateNewsBanner(
-      mostFrequentLabel,
-      newsData.date,
-      CONTENT_LANGUAGE
-    );
+    // Get the pre-composed banner from S3
+    const bannerKey = `composedBanners/${CONTENT_LANGUAGE}/${mostFrequentLabel}.jpg`;
+    const fallbackKey = `composedBanners/${CONTENT_LANGUAGE}/other.jpg`;
+    console.log(`Fetching banner from S3: ${bannerKey}`);
+    
+    let bannerResponse;
+    try {
+      const getBannerCommand = new GetObjectCommand({
+        Bucket: bucket,
+        Key: bannerKey,
+      });
+      bannerResponse = await s3Client.send(getBannerCommand);
+    } catch (error) {
+      console.log(`Banner not found at ${bannerKey}, falling back to ${fallbackKey}`);
+      const getFallbackCommand = new GetObjectCommand({
+        Bucket: bucket,
+        Key: fallbackKey,
+      });
+      bannerResponse = await s3Client.send(getFallbackCommand);
+    }
+    
+    if (!bannerResponse.Body) {
+      throw new Error(`No banner found at S3 keys: ${bannerKey} or ${fallbackKey}`);
+    }
+
+    const bannerBuffer = await bannerResponse.Body.transformToByteArray();
+    
+    // Add date to the banner
+    const banner = await addDateToBanner(Buffer.from(bannerBuffer), newsData.date);
 
     const user = new TelegramUser();
     await user.login();

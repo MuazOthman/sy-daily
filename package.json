@@ -5,6 +5,8 @@
   "scripts": {
     "start": "ts-node src/local/index.ts",
     "build": "rimraf .aws-sam && rimraf lambda && ts-node esbuild.config.ts",
+    "banners:compose": "ts-node src/banner/composeBanners.ts",
+    "banners:update": "rimraf composedBanners && ./updateComposedBanners.sh",
     "predeploy": "npm run build",
     "deploy": "./deploy.sh",
     "telegram:register-webhook": "dotenv -e .env -- ts-node src/telegram-dev/registerTelegramWebhook.ts",
@@ -22,7 +24,10 @@
     "sam:dev": "npm run build && sam build && sam local start-lambda"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^2.0.15",
+    "@ai-sdk/openai": "^2.0.28",
     "@aws-sdk/client-s3": "^3.675.0",
+    "ai": "^5.0.40",
     "aws-lambda": "^1.0.7",
     "axios": "^1.11.0",
     "dotenv": "^16.4.7",
@@ -34,7 +39,7 @@
     "openai": "^5.20.0",
     "sharp": "^0.34.3",
     "telegram": "^2.26.22",
-    "zod": "3.25.6"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.147",
