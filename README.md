@@ -1,18 +1,18 @@
 # Syrian Daily News Bot
 
-A Telegram bot that automatically collects Syrian news from 30+ Telegram channels (government and official sources) and posts daily summaries with generated banner images in both English and Arabic.
+A Telegram bot that automatically collects Syrian news from 30+ Telegram channels (government and official sources), using AI to summarize, translate, label, and prioritize the content before posting daily summaries with generated banner images in both English and Arabic.
 
 ## Features
 
-- Collects posts from 30+ configurable Telegram channels (configured via `channels.json`)
-- Processes Arabic content and creates English summaries using OpenAI
-- Generates custom banner images based on most frequent news categories
-- Posts formatted daily summaries with banners to multiple target Telegram channels (English and Arabic)
-- Uses split Lambda architecture with EventBridge integration for better reliability and scalability
-- Supports both AWS Lambda deployment and local development with caching
-- Handles Damascus timezone for accurate 24-hour news collection
-- Uses axios and JSDOM for lightweight web scraping
-- ARM64 optimized Lambda functions with font rendering support
+- **Multi-channel Collection**: Monitors 30+ configurable Telegram channels from `channels.json`
+- **AI-Powered Processing**: Uses OpenAI or Anthropic models for Arabic-to-English summarization and translation
+- **Dynamic Banner Generation**: Creates SVG-based banner images with category-specific backgrounds for 19+ news types
+- **Dual Language Support**: Posts formatted summaries in both English and Arabic with language-specific banners
+- **Split Lambda Architecture**: Uses EventBridge integration for reliable, scalable message processing
+- **Local Development**: Full local testing environment with caching system
+- **Damascus Timezone**: Accurate 24-hour news collection based on local Syrian time
+- **Lightweight Scraping**: Uses axios and JSDOM for efficient web content extraction
+- **ARM64 Optimization**: Memory-efficient Lambda functions with integrated font rendering support
 
 ## Architecture
 
@@ -55,9 +55,16 @@ TELEGRAM_BOT_TOKEN=your_bot_token
 TELEGRAM_API_ID=your_api_id
 TELEGRAM_API_HASH=your_api_hash
 SESSION_STRING=your_session_string
+
+# AI Provider Configuration (choose one or both)
 OPENAI_API_KEY=your_openai_key
-TELEGRAM_CHANNEL_ID_ENGLISH=your_channel_id_for_local_testing
-TELEGRAM_CHANNEL_ID_ARABIC=your_channel_id_for_local_testing
+ANTHROPIC_API_KEY=your_anthropic_key
+AI_MODEL=openai:gpt-4.1-2025-04-14
+# Alternative: AI_MODEL=anthropic:claude-3-5-sonnet-20241022
+
+# Telegram Channel Configuration
+TELEGRAM_CHANNEL_ID_ENGLISH=your_english_channel_id
+TELEGRAM_CHANNEL_ID_ARABIC=your_arabic_channel_id
 ```
 
 ### Installation
@@ -94,6 +101,13 @@ npm run test:run  # Run tests once
 
 ```bash
 npm run build
+```
+
+### Banner Generation
+
+```bash
+npm run banners:compose    # Generate banner compositions
+npm run banners:update     # Update all composed banner variants
 ```
 
 ## Deployment
@@ -145,8 +159,13 @@ src/
 │   └── telegram/
 │       └── getPostsInLast24Hours.ts # Multi-channel Telegram API integration
 ├── ai/
-│   ├── summarizeAndTranslate.ts    # OpenAI-powered summarization and translation
+│   ├── summarizeAndTranslate.ts    # Multi-provider AI summarization and translation
+│   ├── getLLMProvider.ts           # AI provider abstraction (OpenAI/Anthropic)
 │   └── customTerms.ts              # Custom terminology handling
+├── banner/
+│   ├── newsBanner.ts               # Advanced SVG-based banner generation system
+│   ├── composeBanners.ts           # Banner composition utility
+│   └── bannersDemo.ts              # Banner generation demo and testing
 ├── formatting/
 │   ├── index.ts                    # Formatting system entry point
 │   ├── telegramNewsFormatter.ts    # Telegram message formatting
@@ -162,15 +181,28 @@ src/
 │   └── dateUtils.ts                # Damascus timezone utilities
 ├── prioritizeNews.ts               # News prioritization logic with label weighting
 ├── prioritizeAndFormat.ts          # Combined prioritization and formatting
-├── newsBanner.ts                   # Banner image generation system
 ├── mostFrequentLabel.ts            # News category detection for banners
 └── types.ts                        # TypeScript type definitions
 
-channels.json               # Channel configuration
-template.yml               # AWS SAM template
-vitest.config.ts           # Test configuration
-events/                     # SAM local event files
-└── s3-event.json          # S3 event for testing Lambda functions
+assets/
+├── fonts/                          # Arabic fonts for banner generation
+├── label-bgs/                      # Category-specific background images (19 types)
+├── logo-arabic.png                 # Arabic logo
+├── logo-english.png                # English logo
+└── telegram-logo.png               # Telegram branding
+
+composedBanners/
+├── english/                        # Pre-composed English banners
+└── arabic/                         # Pre-composed Arabic banners
+
+channels.json                       # Channel configuration (30+ sources)
+template.yml                        # AWS SAM template
+vitest.config.ts                    # Test configuration
+events/                             # SAM local event files
+├── s3-event.json                   # S3 event for testing Lambda functions
+└── schedule-event.json             # Scheduled event for testing collection
+deploy.sh                           # Deployment script
+updateComposedBanners.sh            # Banner update utility
 ```
 
 ## How It Works
@@ -184,7 +216,13 @@ events/                     # SAM local event files
 3. **Summarization**: Uses OpenAI to create English summaries and translations from Arabic content
 4. **Storage**: Uploads processed news data to S3 bucket with date-based key
 
-**PostToTelegramFunction** (both English and Arabic versions triggered by EventBridge event from S3): 5. **Retrieval**: Downloads processed news data from S3 6. **Prioritization**: Analyzes and prioritizes news items based on importance and relevance 7. **Formatting**: Formats news items into structured Telegram messages (language-specific) 8. **Banner Generation**: Creates custom banner image based on most frequent news category 9. **Publishing**: Posts banner image with formatted summary to respective target Telegram channels via TelegramUser client
+**PostToTelegramFunction** (both English and Arabic versions triggered by EventBridge event from S3):
+
+5. **Retrieval**: Downloads processed news data from S3
+6. **Prioritization**: Analyzes and prioritizes news items based on importance and relevance using weighted label system
+7. **Formatting**: Formats news items into structured Telegram messages (language-specific with HTML formatting)
+8. **Banner Generation**: Creates custom SVG-based banner image with category-specific background based on most frequent news label
+9. **Publishing**: Posts banner image with formatted summary to respective target Telegram channels via TelegramUser client
 
 ### Local Development Flow
 
