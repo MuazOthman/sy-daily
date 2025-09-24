@@ -19,7 +19,7 @@ export const NewsItemLabelWeights: Record<NewsItemLabel, number> = {
   health: 60,
   infrastructure: 70,
   politics: 60,
-  president: 80,
+  president: 100,
   science: 30,
   "security-incident": 80,
   sports: 20,
@@ -41,10 +41,13 @@ export function prioritizeNews(
   const weightedNewsItems = newsItems.map((item) => {
     return {
       ...item,
-      importanceScore: getWeightForLabels(item.labels),
+      importanceScore:
+        getWeightForLabels(item.labels) + item.sources.length * 20,
     };
   });
-  return weightedNewsItems.sort(
+  const sortedNewsItems = weightedNewsItems.sort(
     (a, b) => b.importanceScore - a.importanceScore
   );
+  // console.log(JSON.stringify(sortedNewsItems, null, 2));
+  return sortedNewsItems;
 }

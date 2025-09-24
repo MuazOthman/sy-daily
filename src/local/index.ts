@@ -1,60 +1,123 @@
 import { config } from "dotenv";
 config();
 
-import { getMostRecent12AMInDamascus } from "../utils/dateUtils";
-import { CollectedNewsData, ContentLanguage } from "../types";
+import { getEpochSecondsMostRecentMidnightInDamascus } from "../utils/dateUtils";
+import { ProcessedNews, ContentLanguage } from "../types";
 import fs from "fs";
 import path from "path";
 import { prioritizeAndFormat } from "../prioritizeAndFormat";
-import { collectAndSummarize } from "../news-collection/collectAndSummarize";
+import { collect } from "../news-collection/collect";
 import { generateNewsBanner } from "../banner/newsBanner";
 import { TelegramUser } from "../telegram/user";
 import { getMostFrequentLabel } from "../mostFrequentLabel";
+import { summarize } from "../ai/summarize";
+import { deduplicate } from "../ai/deduplicate";
+import { prioritizeNews } from "../prioritizeNews";
 
-const CACHE_FILE = path.join(process.cwd(), "cache", "cachedData.json");
+const CACHE_COLLECTED_NEWS_FILE = path.join(
+  process.cwd(),
+  "cache",
+  "collectedNews.json"
+);
+const CACHE_SUMMARIZED_NEWS_FILE = path.join(
+  process.cwd(),
+  "cache",
+  "summarizedNews.json"
+);
+const CACHE_DEDUPLICATED_NEWS_FILE = path.join(
+  process.cwd(),
+  "cache",
+  "deduplicatedNews.json"
+);
+
+async function getCollectedNews(date: string) {
+  try {
+    if (fs.existsSync(CACHE_COLLECTED_NEWS_FILE)) {
+      return JSON.parse(fs.readFileSync(CACHE_COLLECTED_NEWS_FILE, "utf8"));
+    }
+    const fetchedNews = await collect();
+    const result = {
+      ...fetchedNews,
+      date,
+    };
+    fs.writeFileSync(
+      CACHE_COLLECTED_NEWS_FILE,
+      JSON.stringify(result, null, 2)
+    );
+    return result;
+  } catch (error) {
+    console.error("Failed to fetch posts from Telegram:", error);
+    return;
+  }
+}
+
+async function getSummarizedNews(date: string) {
+  try {
+    if (fs.existsSync(CACHE_SUMMARIZED_NEWS_FILE)) {
+      return JSON.parse(fs.readFileSync(CACHE_SUMMARIZED_NEWS_FILE, "utf8"));
+    }
+    const collectedNews = await getCollectedNews(date);
+    const summarizedNews = await summarize(collectedNews.newsItems);
+    const result: ProcessedNews = {
+      numberOfPosts: collectedNews.numberOfPosts,
+      numberOfSources: collectedNews.numberOfSources,
+      date,
+      newsResponse: summarizedNews,
+    };
+    fs.writeFileSync(
+      CACHE_SUMMARIZED_NEWS_FILE,
+      JSON.stringify(result, null, 2)
+    );
+    return result;
+  } catch (error) {
+    console.error("Failed to summarize news:", error);
+    return;
+  }
+}
+
+async function getDeduplicatedNews(date: string) {
+  try {
+    if (fs.existsSync(CACHE_DEDUPLICATED_NEWS_FILE)) {
+      return JSON.parse(fs.readFileSync(CACHE_DEDUPLICATED_NEWS_FILE, "utf8"));
+    }
+  } catch (error) {
+    console.error("Failed to deduplicate news:", error);
+    return;
+  }
+  const summarizedNews = await getSummarizedNews(date);
+  const prioritizedNews = prioritizeNews(summarizedNews.newsResponse.newsItems)
+    .slice(0, 100)
+    .map((item) => {
+      const { importanceScore, ...rest } = item;
+      return rest;
+    });
+  const deduplicatedNews = await deduplicate({
+    ...summarizedNews.newsResponse,
+    newsItems: prioritizedNews,
+  });
+  const result: ProcessedNews = {
+    ...summarizedNews,
+    newsResponse: deduplicatedNews,
+  };
+  fs.writeFileSync(
+    CACHE_DEDUPLICATED_NEWS_FILE,
+    JSON.stringify(result, null, 2)
+  );
+  return result;
+}
 
 export async function executeForLast24Hours(
   language: ContentLanguage,
   channelId: number,
   simulate = false
 ) {
-  console.log(CACHE_FILE);
-
-  const date = new Date(getMostRecent12AMInDamascus() * 1000)
+  const date = new Date(getEpochSecondsMostRecentMidnightInDamascus() * 1000)
     .toISOString()
     .split("T")[0];
-  let cachedData: CollectedNewsData = {
-    newsResponse: { newsItems: [] },
-    numberOfPosts: 0,
-    numberOfSources: 0,
-    date,
-  };
 
-  // use cachedData.json if it exists
-  if (fs.existsSync(CACHE_FILE)) {
-    cachedData = JSON.parse(fs.readFileSync(CACHE_FILE, "utf8"));
-  } else {
-    // throw new Error("Cache file does not exist");
-    try {
-      cachedData = await collectAndSummarize();
-    } catch (error) {
-      console.error("Failed to fetch posts from Telegram:", error);
-      return;
-    }
-  }
-  if (
-    !cachedData.newsResponse.newsItems ||
-    cachedData.newsResponse.newsItems.length === 0
-  ) {
-    console.log("No summary generated, skipping posting.");
-    return;
-  }
+  const news = await getDeduplicatedNews(date);
 
-  console.log(
-    `🔍 Found ${cachedData.newsResponse.newsItems.length} news items`
-  );
-
-  const formattedNews = prioritizeAndFormat(cachedData, language, "telegram");
+  const formattedNews = prioritizeAndFormat(news, language, "telegram");
 
   if (!formattedNews) {
     console.log("No news items found, skipping posting.");
@@ -68,11 +131,9 @@ export async function executeForLast24Hours(
   if (simulate) {
     console.log(formattedNews);
     console.log("\n--- Raw News Items ---");
-    console.log(JSON.stringify(cachedData.newsResponse.newsItems, null, 2));
+    console.log(JSON.stringify(news.newsResponse.newsItems, null, 2));
     return;
   }
-
-  await fs.promises.writeFile(CACHE_FILE, JSON.stringify(cachedData, null, 2));
 
   const banner = await generateNewsBanner(mostFrequentLabel, date, language);
 
@@ -97,12 +158,12 @@ if (simulate) {
 }
 
 async function postSummaries() {
-  // await executeForLast24Hours(
-  //   "arabic",
-  //   parseInt(process.env.TELEGRAM_CHANNEL_ID_ARABIC!),
-  //   simulate
-  // );
-  // console.log("Posted Arabic summary");
+  await executeForLast24Hours(
+    "arabic",
+    parseInt(process.env.TELEGRAM_CHANNEL_ID_ARABIC!),
+    simulate
+  );
+  console.log("Posted Arabic summary");
 
   await executeForLast24Hours(
     "english",

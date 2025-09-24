@@ -85,14 +85,14 @@ export const NewsResponseSchema = z.object({
 
 export type NewsResponse = z.infer<typeof NewsResponseSchema>;
 
-export const CollectedNewsDataSchema = z.object({
+export const ProcessedNewsSchema = z.object({
   newsResponse: NewsResponseSchema,
   numberOfPosts: z.number(),
   numberOfSources: z.number(),
   date: z.string(),
 });
 
-export type CollectedNewsData = z.infer<typeof CollectedNewsDataSchema>;
+export type ProcessedNews = z.infer<typeof ProcessedNewsSchema>;
 
 export const AvailableFormatters = ["telegram"] as const;
 
@@ -102,3 +102,12 @@ export type FormattedNewsData = {
   message: string;
   newsItems: NewsItem[];
 };
+
+export const CollectedNewsDataSchema = z.object({
+  newsItems: z.array(z.string()),
+  numberOfPosts: z.number(),
+  numberOfSources: z.number(),
+  date: z.string(),
+});
+
+export type CollectedNewsData = z.infer<typeof CollectedNewsDataSchema>;

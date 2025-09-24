@@ -14,7 +14,7 @@ sam build
 docker run --rm -v "$(pwd)":/host -w /tmp node:22-slim sh -c '
   export DEBIAN_FRONTEND=noninteractive &&
   npm init -y && 
-  npm install --include=optional sharp && 
+  npm install --include=optional sharp@0.34.3 && 
   cp -r node_modules /host/.aws-sam/build/PostToTelegramArabicFunction/ &&
   cp -r node_modules /host/.aws-sam/build/PostToTelegramEnglishFunction/
 '

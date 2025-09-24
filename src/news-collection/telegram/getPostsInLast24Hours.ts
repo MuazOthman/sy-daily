@@ -2,7 +2,7 @@ import { TelegramClient } from "telegram";
 import { Api } from "telegram";
 import * as fs from "fs";
 import * as path from "path";
-import { getMostRecent12AMInDamascus } from "../../utils/dateUtils";
+import { getEpochSecondsMostRecentMidnightInDamascus } from "../../utils/dateUtils";
 import { TelegramPost, ChannelConfig } from "../../types";
 import { TelegramUser } from "../../telegram/user";
 
@@ -99,7 +99,7 @@ export async function getPostsInLast24Hours(
 
   console.log("Telegram Client: Logged in!");
 
-  const latestDate = getMostRecent12AMInDamascus(specifiedDate);
+  const latestDate = getEpochSecondsMostRecentMidnightInDamascus(specifiedDate);
   const earliestDate = latestDate - 60 * 60 * 24;
 
   console.log(

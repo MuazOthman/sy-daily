@@ -43,12 +43,12 @@ Resources:
           EventBridgeEnabled: true # Send S3 events to EventBridge
 
   # Lambda Function 1: Collect and Summarize (writes JSON to S3)
-  CollectAndSummarizeFunction:
+  CollectFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: ./lambda/CollectAndSummarize
-      Handler: CollectAndSummarize.handler
-      Timeout: 600 # Increased timeout for web scraping and AI processing
+      CodeUri: ./lambda/Collect
+      Handler: Collect.handler
+      Timeout: 600 # Increased timeout for web scraping
       MemorySize: 1024
       Runtime: nodejs22.x
       Architectures:
@@ -58,7 +58,7 @@ Resources:
           Type: Schedule
           Properties:
             Schedule: cron(10 21 * * ? *) # Run daily at 21:10 UTC (00:10 Damascus time)
-            Description: Daily execution of the news collection and summarization
+            Description: Daily execution of the news collection
             Enabled: true
       Policies:
         - AWSLambdaBasicExecutionRole
@@ -77,7 +77,82 @@ Resources:
           ANTHROPIC_API_KEY: !Ref AnthropicApiKey
           AI_MODEL: !Ref AiModel
 
-  # Lambda Function 2a: Post to Telegram (English)
+  SummarizeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./lambda/Summarize
+      Handler: Summarize.handler
+      Timeout: 600 # Increased timeout for AI processing
+      MemorySize: 1024
+      Runtime: nodejs22.x
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - S3CrudPolicy:
+            BucketName: !Ref NewsDataBucket
+      Environment:
+        Variables:
+          NODE_OPTIONS: --enable-source-maps
+          NODE_ENV: production
+          IS_LAMBDA: "true"
+          S3_BUCKET_NAME: !Ref NewsDataBucket
+          TELEGRAM_API_ID: !Ref TelegramApiId
+          TELEGRAM_API_HASH: !Ref TelegramApiHash
+          SESSION_STRING: !Ref SessionString
+          OPENAI_API_KEY: !Ref OpenaiApiKey
+          ANTHROPIC_API_KEY: !Ref AnthropicApiKey
+          AI_MODEL: !Ref AiModel
+      Events:
+        FromEventBridge:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source: ["aws.s3"]
+              detail-type: ["Object Created"]
+              detail:
+                bucket:
+                  name: [!Ref NewsDataBucket]
+                object:
+                  key:
+                    - prefix: "collected-news/"
+
+  DeduplicateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./lambda/Deduplicate
+      Handler: Deduplicate.handler
+      Timeout: 600 # Increased timeout for AI processing
+      MemorySize: 1024
+      Runtime: nodejs22.x
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - S3CrudPolicy:
+            BucketName: !Ref NewsDataBucket
+      Environment:
+        Variables:
+          NODE_OPTIONS: --enable-source-maps
+          NODE_ENV: production
+          IS_LAMBDA: "true"
+          S3_BUCKET_NAME: !Ref NewsDataBucket
+          TELEGRAM_API_ID: !Ref TelegramApiId
+          TELEGRAM_API_HASH: !Ref TelegramApiHash
+          SESSION_STRING: !Ref SessionString
+          OPENAI_API_KEY: !Ref OpenaiApiKey
+          ANTHROPIC_API_KEY: !Ref AnthropicApiKey
+          AI_MODEL: !Ref AiModel
+      Events:
+        FromEventBridge:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source: ["aws.s3"]
+              detail-type: ["Object Created"]
+              detail:
+                bucket:
+                  name: [!Ref NewsDataBucket]
+                object:
+                  key:
+                    - prefix: "summarized-news/"
+
   PostToTelegramEnglishFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -116,12 +191,10 @@ Resources:
               detail:
                 bucket:
                   name: [!Ref NewsDataBucket]
-                # EventBridge supports prefix filtering; combine with a code check for ".json" if needed.
                 object:
                   key:
-                    - prefix: "news-data/"
+                    - prefix: "deduplicated-news/"
 
-  # Lambda Function 2b: Post to Telegram (Arabic)
   PostToTelegramArabicFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -162,4 +235,4 @@ Resources:
                   name: [!Ref NewsDataBucket]
                 object:
                   key:
-                    - prefix: "news-data/"
+                    - prefix: "deduplicated-news/"

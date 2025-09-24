@@ -25,14 +25,17 @@ for (const file of fs.readdirSync("src/lambda")) {
 }
 
 console.log("Copying assets...");
-// copy channels.json to lambda/CollectAndSummarize
-fs.copyFileSync("channels.json", "lambda/CollectAndSummarize/channels.json");
+if (fs.existsSync("lambda/Collect")) {
+  fs.copyFileSync("channels.json", "lambda/Collect/channels.json");
+}
 
-// copy xhr-sync-worker.js to lambda/CollectAndSummarize for JSDOM
-fs.copyFileSync(
-  "node_modules/jsdom/lib/jsdom/living/xhr/xhr-sync-worker.js",
-  "lambda/CollectAndSummarize/xhr-sync-worker.js"
-);
+// copy xhr-sync-worker.js to lambda/Collect for JSDOM
+if (fs.existsSync("lambda/Collect")) {
+  fs.copyFileSync(
+    "node_modules/jsdom/lib/jsdom/living/xhr/xhr-sync-worker.js",
+    "lambda/Collect/xhr-sync-worker.js"
+  );
+}
 
 // copy assets folder and its contents to lambda/PostToTelegram
 // fs.cpSync("assets", "lambda/PostToTelegram/assets", { recursive: true });
