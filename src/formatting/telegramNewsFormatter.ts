@@ -1,6 +1,6 @@
 import { Strings } from "./strings";
 import {
-  CollectedNewsData,
+  ProcessedNews,
   ContentLanguage,
   FormattedNewsData,
   NewsItem,
@@ -30,11 +30,14 @@ const labelEmojis = {
   food: "🍔",
 };
 
+const MAX_LABELS_TO_DISPLAY = 3;
+
 function formatNewsItemForTelegram(
   language: ContentLanguage,
   item: NewsItem
 ): string {
   const labelText = item.labels
+    .slice(0, MAX_LABELS_TO_DISPLAY) // take only the top N labels
     .map((label) => labelEmojis[label.label] || "📰")
     .join(" ");
 
@@ -60,7 +63,7 @@ export function telegramNewsFormatter({
 }: {
   language: ContentLanguage;
   skipItems?: number;
-} & CollectedNewsData): FormattedNewsData {
+} & ProcessedNews): FormattedNewsData {
   const includedItems =
     skipItems > 0
       ? newsResponse.newsItems.slice(0, -skipItems)

@@ -1,7 +1,7 @@
 import { EventBridgeHandler } from "aws-lambda";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import {
-  CollectedNewsDataSchema,
+  ProcessedNewsSchema,
   ContentLanguage,
   ContentLanguages,
 } from "../types";
@@ -71,7 +71,7 @@ export const handler: EventBridgeHandler<"Object Created", any, void> = async (
 
     const newsDataJson = await response.Body.transformToString();
 
-    const newsData = CollectedNewsDataSchema.parse(JSON.parse(newsDataJson));
+    const newsData = ProcessedNewsSchema.parse(JSON.parse(newsDataJson));
 
     console.log(`Processing news data for date: ${newsData.date}`);
 

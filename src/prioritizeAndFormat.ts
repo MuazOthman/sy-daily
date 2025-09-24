@@ -1,7 +1,7 @@
 import { prioritizeNews } from "./prioritizeNews";
 import {
   AvailableFormatter,
-  CollectedNewsData,
+  ProcessedNews,
   ContentLanguage,
   FormattedNewsData,
 } from "./types";
@@ -10,7 +10,7 @@ import { Formatters } from "./formatting";
 const MAX_NEWS_ITEMS = 12;
 
 export function prioritizeAndFormat(
-  newsData: CollectedNewsData,
+  newsData: ProcessedNews,
   language: ContentLanguage,
   formatter: AvailableFormatter
 ): FormattedNewsData | undefined {
