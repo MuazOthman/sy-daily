@@ -48,7 +48,7 @@ export async function summarizeAndTranslate(
       system: systemPrompt,
       prompt: inputText,
       schema: NewsResponseSchema,
-      maxTokens: 20000,
+      maxTokens: 60000,
     });
 
     const { object: newsResponse, usage } = result;
