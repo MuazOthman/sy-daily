@@ -30,12 +30,14 @@ const labelEmojis = {
   food: "🍔",
 };
 
+const MAX_LABELS_TO_DISPLAY = 3;
+
 function formatNewsItemForTelegram(
   language: ContentLanguage,
   item: NewsItem
 ): string {
   const labelText = item.labels
-    .slice(0, 3) // take only the top 3 labels
+    .slice(0, MAX_LABELS_TO_DISPLAY) // take only the top N labels
     .map((label) => labelEmojis[label.label] || "📰")
     .join(" ");
 
