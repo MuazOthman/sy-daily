@@ -48,6 +48,5 @@ export function prioritizeNews(
   const sortedNewsItems = weightedNewsItems.sort(
     (a, b) => b.importanceScore - a.importanceScore
   );
-  // console.log(JSON.stringify(sortedNewsItems, null, 2));
   return sortedNewsItems;
 }
