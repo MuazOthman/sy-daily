@@ -12,7 +12,7 @@ const s3Client = new S3Client({
 });
 const BUCKET_NAME = process.env.S3_BUCKET_NAME!;
 
-const ONE_MINUTE_SECONDS = 60;
+const ONE_MINUTE_MILLISECONDS = 60 * 1000;
 
 export const handler: ScheduledHandler = async (event) => {
   try {
@@ -21,7 +21,7 @@ export const handler: ScheduledHandler = async (event) => {
     const lastMidnightInDamascus =
       getEpochSecondsMostRecentMidnightInDamascus(date) * 1000;
     const damascusDate = formatDateUTCPlus3(
-      new Date(lastMidnightInDamascus - ONE_MINUTE_SECONDS) // 1 minute before midnight, this is to get the previous day's date
+      new Date(lastMidnightInDamascus - ONE_MINUTE_MILLISECONDS) // 1 minute before midnight, this is to get the previous day's date
     );
 
     console.log("Starting news collection for:", date);
