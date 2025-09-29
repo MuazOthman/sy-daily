@@ -81,8 +81,8 @@ async function getDeduplicatedNews(date: string) {
       return JSON.parse(fs.readFileSync(CACHE_DEDUPLICATED_NEWS_FILE, "utf8"));
     }
   } catch (error) {
-    console.error("Failed to deduplicate news:", error);
-    return;
+    console.error("Failed to deduplicate news:");
+    throw error;
   }
   const summarizedNews = await getSummarizedNews(date);
   const prioritizedNews = prioritizeNews(summarizedNews.newsResponse.newsItems)
