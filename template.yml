@@ -32,6 +32,19 @@ Parameters:
   TelegramChannelIdArabic:
     Type: String
     Description: Telegram channel ID for Arabic posts
+  FacebookPageIdEnglish:
+    Type: String
+    Description: Facebook page ID for English posts
+    Default: ""
+  FacebookPageIdArabic:
+    Type: String
+    Description: Facebook page ID for Arabic posts
+    Default: ""
+  FacebookAccessToken:
+    Type: String
+    NoEcho: true
+    Description: Facebook access token for posting
+    Default: ""
 
 Resources:
   # S3 Bucket for storing news data between Lambda functions
@@ -153,11 +166,11 @@ Resources:
                   key:
                     - prefix: "summarized-news/"
 
-  PostToTelegramEnglishFunction:
+  PublishToTelegramEnglishFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: ./lambda/PostToTelegram
-      Handler: PostToTelegram.handler
+      CodeUri: ./lambda/Publish
+      Handler: Publish.handler
       Timeout: 60
       MemorySize: 512
       Runtime: nodejs22.x
@@ -176,11 +189,12 @@ Resources:
           NODE_ENV: production
           IS_LAMBDA: "true"
           CONTENT_LANGUAGE: "english"
+          CHANNEL_TYPE: "telegram"
+          CHANNEL_ID: !Ref TelegramChannelIdEnglish
           FONTCONFIG_PATH: /opt/etc/fonts
           TELEGRAM_API_ID: !Ref TelegramApiId
           TELEGRAM_API_HASH: !Ref TelegramApiHash
           SESSION_STRING: !Ref SessionString
-          TELEGRAM_CHANNEL_ID: !Ref TelegramChannelIdEnglish
       Events:
         FromEventBridge:
           Type: EventBridgeRule
@@ -195,11 +209,11 @@ Resources:
                   key:
                     - prefix: "deduplicated-news/"
 
-  PostToTelegramArabicFunction:
+  PublishToTelegramArabicFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: ./lambda/PostToTelegram
-      Handler: PostToTelegram.handler
+      CodeUri: ./lambda/Publish
+      Handler: Publish.handler
       Timeout: 60
       MemorySize: 512
       Runtime: nodejs22.x
@@ -218,11 +232,94 @@ Resources:
           NODE_ENV: production
           IS_LAMBDA: "true"
           CONTENT_LANGUAGE: "arabic"
+          CHANNEL_TYPE: "telegram"
+          CHANNEL_ID: !Ref TelegramChannelIdArabic
           FONTCONFIG_PATH: /opt/etc/fonts
           TELEGRAM_API_ID: !Ref TelegramApiId
           TELEGRAM_API_HASH: !Ref TelegramApiHash
           SESSION_STRING: !Ref SessionString
-          TELEGRAM_CHANNEL_ID: !Ref TelegramChannelIdArabic
+      Events:
+        FromEventBridge:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source: ["aws.s3"]
+              detail-type: ["Object Created"]
+              detail:
+                bucket:
+                  name: [!Ref NewsDataBucket]
+                object:
+                  key:
+                    - prefix: "deduplicated-news/"
+
+  PublishToFacebookEnglishFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./lambda/Publish
+      Handler: Publish.handler
+      Timeout: 60
+      MemorySize: 512
+      Runtime: nodejs22.x
+      Architectures:
+        - arm64
+      Layers:
+        - arn:aws:lambda:us-east-1:347599033421:layer:amazon_linux_fonts:1
+        - arn:aws:lambda:us-east-1:347599033421:layer:stix-fonts:1
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - S3ReadPolicy:
+            BucketName: !Ref NewsDataBucket
+      Environment:
+        Variables:
+          NODE_OPTIONS: --enable-source-maps
+          NODE_ENV: production
+          IS_LAMBDA: "true"
+          CONTENT_LANGUAGE: "english"
+          CHANNEL_TYPE: "facebook"
+          CHANNEL_ID: !Ref FacebookPageIdEnglish
+          FONTCONFIG_PATH: /opt/etc/fonts
+          FACEBOOK_ACCESS_TOKEN: !Ref FacebookAccessToken
+      Events:
+        FromEventBridge:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source: ["aws.s3"]
+              detail-type: ["Object Created"]
+              detail:
+                bucket:
+                  name: [!Ref NewsDataBucket]
+                object:
+                  key:
+                    - prefix: "deduplicated-news/"
+
+  PublishToFacebookArabicFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./lambda/Publish
+      Handler: Publish.handler
+      Timeout: 60
+      MemorySize: 512
+      Runtime: nodejs22.x
+      Architectures:
+        - arm64
+      Layers:
+        - arn:aws:lambda:us-east-1:347599033421:layer:amazon_linux_fonts:1
+        - arn:aws:lambda:us-east-1:347599033421:layer:stix-fonts:1
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - S3ReadPolicy:
+            BucketName: !Ref NewsDataBucket
+      Environment:
+        Variables:
+          NODE_OPTIONS: --enable-source-maps
+          NODE_ENV: production
+          IS_LAMBDA: "true"
+          CONTENT_LANGUAGE: "arabic"
+          CHANNEL_TYPE: "facebook"
+          CHANNEL_ID: !Ref FacebookPageIdArabic
+          FONTCONFIG_PATH: /opt/etc/fonts
+          FACEBOOK_ACCESS_TOKEN: !Ref FacebookAccessToken
       Events:
         FromEventBridge:
           Type: EventBridgeRule
