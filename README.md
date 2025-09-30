@@ -11,12 +11,14 @@ A Telegram bot that automatically collects Syrian news from 30+ Telegram channel
 
 - **Multi-channel Collection**: Monitors 30+ configurable Telegram channels from `channels.json`
 - **AI-Powered Processing**: Uses OpenAI or Anthropic models for summarization, translation, and deduplication
+- **AI Provider Fallback**: Automatic failover between multiple AI providers for improved reliability
 - **4-Stage Modular Pipeline**: Separate Lambda functions for Collection → Summarization → Deduplication → Posting
 - **Parallel AI Processing**: Batch summarization with up to 30 parallel batches of 20 items each
 - **Intelligent Deduplication**: AI-powered merging of duplicate stories while preserving all sources
 - **Dynamic Banner Generation**: Creates SVG-based banner images with category-specific backgrounds for 19+ news types
 - **Dual Language Support**: Posts formatted summaries in both English and Arabic with language-specific banners
 - **EventBridge Orchestration**: S3-triggered Lambda functions for reliable, scalable pipeline execution
+- **CloudWatch Monitoring**: EMF-based metrics for AI provider usage, success rates, and performance
 - **Local Development**: Full local testing environment with caching system
 - **Damascus Timezone**: Accurate 24-hour news collection based on local Syrian time
 - **Lightweight Scraping**: Uses axios and JSDOM for efficient web content extraction
@@ -112,11 +114,15 @@ TELEGRAM_API_ID=your_api_id
 TELEGRAM_API_HASH=your_api_hash
 SESSION_STRING=your_session_string
 
-# AI Provider Configuration (choose one or both)
+# AI Provider Configuration
 OPENAI_API_KEY=your_openai_key
 ANTHROPIC_API_KEY=your_anthropic_key
+
+# Single model (backward compatible):
 AI_MODEL=openai:gpt-4.1-2025-04-14
-# Alternative: AI_MODEL=anthropic:claude-3-5-sonnet-20241022
+
+# Multiple models with fallback (recommended for production):
+# AI_MODELS=openai:gpt-4.1-2025-04-14,anthropic:claude-3-5-sonnet-20241022
 
 # Telegram Channel Configuration
 TELEGRAM_CHANNEL_ID_ENGLISH=your_english_channel_id
@@ -185,6 +191,55 @@ yarn run telegram:serve     # Start Telegram development server
 ```bash
 npm run banners:compose    # Generate banner compositions
 npm run banners:update     # Update all composed banner variants
+```
+
+### AI Provider Fallback
+
+The system supports automatic fallback between multiple AI providers for improved reliability:
+
+**Configuration Options**:
+
+1. **Single Provider** (backward compatible):
+   ```env
+   AI_MODEL=openai:gpt-4.1-2025-04-14
+   ```
+
+2. **Multiple Providers with Fallback** (recommended):
+   ```env
+   AI_MODELS=openai:gpt-4.1-2025-04-14,anthropic:claude-3-5-sonnet-20241022
+   ```
+
+**How It Works**:
+
+- The system attempts providers in the order specified
+- If a provider fails, it automatically tries the next one
+- Different error types trigger different retry strategies:
+  - **Rate Limiting**: Immediately tries next provider
+  - **Authentication**: Skips to next provider
+  - **Network Errors**: Waits 2s before next provider
+  - **Service Unavailable**: Tries next provider immediately
+  - **Unknown Errors**: Waits 1s before next provider
+
+**Monitoring**:
+
+- CloudWatch metrics are automatically recorded using Embedded Metric Format (EMF)
+- Available metrics in `SyDaily/AIProviders` namespace:
+  - `ProviderSuccess`: Success/failure count per provider
+  - `AttemptCount`: Number of providers tried before success
+  - `OperationDuration`: Time taken for AI operations
+- Dimensions: Provider, Model, Operation
+
+**Example Scenarios**:
+
+```bash
+# Primary provider (OpenAI) + fallback (Anthropic)
+AI_MODELS=openai:gpt-4.1-2025-04-14,anthropic:claude-3-5-sonnet-20241022
+
+# Use cheaper model first, premium as fallback
+AI_MODELS=openai:gpt-4o-mini,openai:gpt-4.1-2025-04-14
+
+# Multiple Anthropic models
+AI_MODELS=anthropic:claude-3-5-haiku-20241022,anthropic:claude-3-5-sonnet-20241022
 ```
 
 ## Deployment

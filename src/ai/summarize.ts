@@ -1,7 +1,7 @@
 import { generateObject } from "ai";
 import { NewsResponse, NewsResponseSchema } from "../types";
 import { CustomTerms } from "./customTerms";
-import { getLLMProvider } from "./getLLMProvider";
+import { withProviderFallback } from "./getLLMProvider";
 import { OpenAIResponsesProviderOptions } from "@ai-sdk/openai";
 
 const MAX_OUTPUT_TOKENS = 20000;
@@ -56,7 +56,6 @@ export async function summarize(
   );
 
   const allNewsItems: NewsResponse["newsItems"] = [];
-  const model = getLLMProvider();
   const overallStart = Date.now();
   let totalUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
 
@@ -72,19 +71,24 @@ export async function summarize(
     try {
       const inputText = JSON.stringify(batch, null, 2);
 
-      // LLM call: Summarize, translate, and label
-      const result = await (generateObject as any)({
-        model,
-        system: systemPromptSummarize,
-        prompt: inputText,
-        schema: NewsResponseSchema,
-        maxTokens: MAX_OUTPUT_TOKENS,
-        providerOptions: {
-          openai: {
-            store: true,
-          } satisfies OpenAIResponsesProviderOptions,
+      // LLM call with fallback: Summarize, translate, and label
+      const { result, providerUsed } = await withProviderFallback(
+        async (model, config) => {
+          return await (generateObject as any)({
+            model,
+            system: systemPromptSummarize,
+            prompt: inputText,
+            schema: NewsResponseSchema,
+            maxTokens: MAX_OUTPUT_TOKENS,
+            providerOptions: {
+              openai: {
+                store: true,
+              } satisfies OpenAIResponsesProviderOptions,
+            },
+          });
         },
-      });
+        `Summarize batch ${batchIndex + 1}`
+      );
 
       const { object: batchResponse, usage } = result;
 
@@ -99,7 +103,7 @@ export async function summarize(
       console.log(
         `✅ Batch ${batchIndex + 1} completed in ${batchEnd - batchStart}ms (${
           batchResponse.newsItems.length
-        } items)`
+        } items) using ${providerUsed.provider}:${providerUsed.model}`
       );
 
       return batchResponse.newsItems;
@@ -140,9 +144,7 @@ export async function summarize(
   const overallEnd = Date.now();
   console.log(`📝 All batches completed in ${overallEnd - overallStart}ms`);
   console.log(`Total items generated: ${allNewsItems.length}`);
-  console.log(
-    `Model used: ${model.modelId}. Total usage: ${JSON.stringify(totalUsage)}`
-  );
+  console.log(`Total usage: ${JSON.stringify(totalUsage)}`);
 
   return { newsItems: allNewsItems };
 }
