@@ -25,7 +25,11 @@ Parameters:
   AiModel:
     Type: String
     Default: "openai:gpt-4.1-2025-04-14"
-    Description: AI model to use with provider prefix (e.g., openai:gpt-4.1-2025-04-14, anthropic:claude-3-5-sonnet-20241022)
+    Description: "(Deprecated - use AiModels) AI model to use with provider prefix (e.g., openai:gpt-4.1-2025-04-14, anthropic:claude-3-5-sonnet-20241022)"
+  AiModels:
+    Type: String
+    Default: "openai:gpt-4.1-2025-04-14,anthropic:claude-sonnet-4-5-20250929"
+    Description: "Comma-separated list of AI models in priority order for fallback (e.g., openai:gpt-4.1-2025-04-14,anthropic:claude-3-5-sonnet-20241022). If empty, uses AiModel."
   TelegramChannelIdEnglish:
     Type: String
     Description: Telegram channel ID for English posts
@@ -64,6 +68,7 @@ Resources:
         - AWSLambdaBasicExecutionRole
         - S3WritePolicy:
             BucketName: !Ref NewsDataBucket
+        - CloudWatchPutMetricPolicy: {}
       Environment:
         Variables:
           NODE_OPTIONS: --enable-source-maps
@@ -76,6 +81,7 @@ Resources:
           OPENAI_API_KEY: !Ref OpenaiApiKey
           ANTHROPIC_API_KEY: !Ref AnthropicApiKey
           AI_MODEL: !Ref AiModel
+          AI_MODELS: !Ref AiModels
 
   SummarizeFunction:
     Type: AWS::Serverless::Function
@@ -89,6 +95,7 @@ Resources:
         - AWSLambdaBasicExecutionRole
         - S3CrudPolicy:
             BucketName: !Ref NewsDataBucket
+        - CloudWatchPutMetricPolicy: {}
       Environment:
         Variables:
           NODE_OPTIONS: --enable-source-maps
@@ -101,6 +108,7 @@ Resources:
           OPENAI_API_KEY: !Ref OpenaiApiKey
           ANTHROPIC_API_KEY: !Ref AnthropicApiKey
           AI_MODEL: !Ref AiModel
+          AI_MODELS: !Ref AiModels
       Events:
         FromEventBridge:
           Type: EventBridgeRule
@@ -127,6 +135,7 @@ Resources:
         - AWSLambdaBasicExecutionRole
         - S3CrudPolicy:
             BucketName: !Ref NewsDataBucket
+        - CloudWatchPutMetricPolicy: {}
       Environment:
         Variables:
           NODE_OPTIONS: --enable-source-maps
@@ -139,6 +148,7 @@ Resources:
           OPENAI_API_KEY: !Ref OpenaiApiKey
           ANTHROPIC_API_KEY: !Ref AnthropicApiKey
           AI_MODEL: !Ref AiModel
+          AI_MODELS: !Ref AiModels
       Events:
         FromEventBridge:
           Type: EventBridgeRule

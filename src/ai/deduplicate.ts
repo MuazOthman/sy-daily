@@ -1,6 +1,6 @@
 import { generateObject } from "ai";
 import { NewsResponse, NewsResponseSchema } from "../types";
-import { getLLMProvider } from "./getLLMProvider";
+import { withProviderFallback } from "./getLLMProvider";
 import { CustomTerms } from "./customTerms";
 
 const MAX_OUTPUT_TOKENS = 60000;
@@ -29,16 +29,20 @@ export async function deduplicate(
   try {
     console.log("🔍 Deduplicating news items");
     const start = Date.now();
-    const model = getLLMProvider();
 
-    // LLM call: Deduplicate
-    const result = await (generateObject as any)({
-      model,
-      system: systemPromptDeduplicate,
-      prompt: JSON.stringify(newsResponse.newsItems, null, 2),
-      schema: NewsResponseSchema,
-      maxTokens: MAX_OUTPUT_TOKENS,
-    });
+    // LLM call with fallback: Deduplicate
+    const { result, providerUsed, attemptsMade } = await withProviderFallback(
+      async (model, config) => {
+        return await (generateObject as any)({
+          model,
+          system: systemPromptDeduplicate,
+          prompt: JSON.stringify(newsResponse.newsItems, null, 2),
+          schema: NewsResponseSchema,
+          maxTokens: MAX_OUTPUT_TOKENS,
+        });
+      },
+      "Deduplicate"
+    );
 
     const { object: deduplicatedResponse, usage } = result;
 
@@ -48,7 +52,7 @@ export async function deduplicate(
       `Items before: ${newsResponse.newsItems.length}, after: ${deduplicatedResponse.newsItems.length}`
     );
     console.log(
-      `Model used: ${model.modelId}. Usage: ${JSON.stringify(usage)}`
+      `Provider used: ${providerUsed.provider}:${providerUsed.model}. Usage: ${JSON.stringify(usage)}`
     );
 
     return deduplicatedResponse;
