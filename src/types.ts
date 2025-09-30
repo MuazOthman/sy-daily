@@ -98,6 +98,10 @@ export const AvailableFormatters = ["telegram"] as const;
 
 export type AvailableFormatter = (typeof AvailableFormatters)[number];
 
+export const SupportedPublishChannels = ["telegram", "facebook"] as const;
+
+export type SupportedPublishChannel = (typeof SupportedPublishChannels)[number];
+
 export type FormattedNewsData = {
   message: string;
   newsItems: NewsItem[];
