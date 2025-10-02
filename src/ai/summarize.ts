@@ -12,9 +12,9 @@ Your task is to summarize each news item individually in isolation of the other 
 1. News will be given as a JSON array of strings.
 2. Include ALL news items in the response, do not filter them out or limit the number of news items.
 3. Do not combine news items, treat each news item as a separate entity.
-4. Use neutral tone in summaries.
+4. Use neutral tone in summaries and be very concise.
 5. When editing the summary in Arabic, use verb-subject-object structure. DON'T USE subject-verb-object structure.
-6. Use the following terms/idioms when translating: ${CustomTerms.map(
+6. Use the following terms/idioms when translating to English only: ${CustomTerms.map(
   (term) => `${term.arabic} -> ${term.english}`
 ).join(", ")}
 7. The number of news items in the response should be exactly the number of news items in the input, do not add or remove any news items.`;
@@ -42,7 +42,7 @@ export async function summarize(
     return NewsResponseSchema.parse(mockResponse);
   }
 
-  const BATCH_SIZE = 20;
+  const BATCH_SIZE = 10;
   const MAX_PARALLEL_BATCHES = 30;
   const batches: string[][] = [];
 

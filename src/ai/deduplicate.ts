@@ -1,19 +1,22 @@
-import { generateObject } from "ai";
-import { NewsResponse, NewsResponseSchema, NewsItem } from "../types";
+import { generateObject, GenerateObjectResult } from "ai";
+import {
+  SimplifiedNewsItem,
+  SimplifiedNewsResponse,
+  SimplifiedNewsResponseSchema,
+} from "../types";
 import { getLLMProvider } from "./getLLMProvider";
-import { CustomTerms } from "./customTerms";
 import fs from "node:fs/promises";
 
 const MAX_OUTPUT_TOKENS = 60000;
-const BATCH_SIZE = 50;
+const BATCH_SIZE = 30;
 const MAX_PARALLEL_REQUESTS = 5;
 const BATCH_WAIT_TIME_MS = 2000; // 2 seconds
 const ROUND_WAIT_TIME_MS = 4000; // 4 seconds
-const DEDUPLICATION_RATIO_THRESHOLD = 0.9;
+const DEDUPLICATION_RATIO_THRESHOLD = 0.95;
 const MIN_ITEMS_PER_ROUND = 30;
 
 async function writeToFile(
-  newsItems: NewsItem[],
+  items: SimplifiedNewsItem[],
   type: "input" | "output",
   roundNumber: number,
   batchNumber?: number
@@ -25,7 +28,7 @@ async function writeToFile(
   if (DEDUPE_OUTPUT_FOLDER) {
     await fs.writeFile(
       `${DEDUPE_OUTPUT_FOLDER}/${batchName}-${type}.json`,
-      JSON.stringify(newsItems, null, 2)
+      JSON.stringify(items, null, 2)
     );
   } else {
     console.log(
@@ -34,20 +37,13 @@ async function writeToFile(
   }
 }
 
-const systemPromptDeduplicate = `You are a news editor fluent in English and Arabic. You'll be given a list of news items that may contain duplicates. Your task is to deduplicate the news items. Follow these rules:
+const systemPromptDeduplicate = `You are a news editor fluent in Arabic. You'll be given a list of news items that may contain duplicates. Your task is to deduplicate the news items. Follow these rules:
 
-1. Identify and merge ALL similar stories - whenever multiple items cover the same event, combine them into one news item.
+1. Identify and merge ALL similar stories - whenever multiple items cover the same event or are related to the same topic, combine them into one news item.
 2. Don't skip any news item: items that cannot be merged should be kept as is.
 3. When merging, preserve all unique sources from the duplicate items.
-4. When merging, preserve all unique labels from the duplicate items and recalculate the relation scores.
-5. Keep the most comprehensive summary when merging duplicates.
-6. Produce both Arabic and English summaries after combining duplicates.
-7. Use neutral tone in summaries.
-8. When editing the summary in Arabic, use verb-subject-object structure. DON'T USE subject-verb-object structure.
-9. Use the following terms/idioms when translating: ${CustomTerms.map(
-  (term) => `${term.arabic} -> ${term.english}`
-).join(", ")}
-9. Return ALL unique news items after deduplication.`;
+4. Keep the most comprehensive summary when merging duplicates.
+5. Return ALL unique news items after deduplication.`;
 
 interface UsageStats {
   promptTokens: number;
@@ -56,18 +52,20 @@ interface UsageStats {
 }
 
 async function deduplicateBatch(
-  newsItems: NewsItem[],
+  newsItems: SimplifiedNewsItem[],
   roundNumber: number,
   batchNumber: number
-): Promise<{ items: NewsItem[]; usage: UsageStats }> {
+): Promise<{ items: SimplifiedNewsItem[]; usage: UsageStats }> {
   const model = getLLMProvider();
   await writeToFile(newsItems, "input", roundNumber, batchNumber);
 
-  const result = await (generateObject as any)({
+  const result: GenerateObjectResult<SimplifiedNewsResponse> = await (
+    generateObject as any
+  )({
     model,
     system: systemPromptDeduplicate,
     prompt: JSON.stringify(newsItems, null, 2),
-    schema: NewsResponseSchema,
+    schema: SimplifiedNewsResponseSchema,
     maxTokens: MAX_OUTPUT_TOKENS,
   });
 
@@ -78,31 +76,35 @@ async function deduplicateBatch(
   const { object: deduplicatedResponse, usage } = result;
   console.log(
     `  Batch: ${batchName} - ${newsItems.length} → ${
-      deduplicatedResponse.newsItems.length
+      deduplicatedResponse.items.length
     } items. Usage: ${JSON.stringify(usage)}`
   );
   await writeToFile(
-    deduplicatedResponse.newsItems,
+    deduplicatedResponse.items,
     "output",
     roundNumber,
     batchNumber
   );
 
   return {
-    items: deduplicatedResponse.newsItems,
+    items: deduplicatedResponse.items,
     usage: {
-      promptTokens: usage.promptTokens || 0,
-      completionTokens: usage.completionTokens || 0,
+      promptTokens: usage.inputTokens || 0,
+      completionTokens: usage.outputTokens || 0,
       totalTokens: usage.totalTokens || 0,
     },
   };
 }
 
 async function processBatchesInParallel(
-  batches: NewsItem[][],
+  batches: SimplifiedNewsItem[][],
   roundNumber: number
-): Promise<{ items: NewsItem[]; requestCount: number; usage: UsageStats }> {
-  const results: NewsItem[] = [];
+): Promise<{
+  items: SimplifiedNewsItem[];
+  requestCount: number;
+  usage: UsageStats;
+}> {
+  const results: SimplifiedNewsItem[] = [];
   let requestCount = 0;
   const totalUsage: UsageStats = {
     promptTokens: 0,
@@ -144,17 +146,36 @@ async function processBatchesInParallel(
   return { items: results, requestCount, usage: totalUsage };
 }
 
+function shuffleArray<T>(array: T[]): T[] {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
 async function deduplicateRound(
-  newsItems: NewsItem[],
+  newsItems: SimplifiedNewsItem[],
   roundNumber: number
-): Promise<{ items: NewsItem[]; requestCount: number; usage: UsageStats }> {
+): Promise<{
+  items: SimplifiedNewsItem[];
+  requestCount: number;
+  usage: UsageStats;
+}> {
   const startCount = newsItems.length;
   console.log(`\n🔄 Round ${roundNumber}: Processing ${startCount} items`);
 
+  // Shuffle items before splitting into batches (except first round)
+  const itemsToProcess = roundNumber > 1 ? shuffleArray(newsItems) : newsItems;
+  if (roundNumber > 1) {
+    console.log(`  Items shuffled for round ${roundNumber}`);
+  }
+
   // Split into batches
-  const batches: NewsItem[][] = [];
-  for (let i = 0; i < newsItems.length; i += BATCH_SIZE) {
-    batches.push(newsItems.slice(i, i + BATCH_SIZE));
+  const batches: SimplifiedNewsItem[][] = [];
+  for (let i = 0; i < itemsToProcess.length; i += BATCH_SIZE) {
+    batches.push(itemsToProcess.slice(i, i + BATCH_SIZE));
   }
 
   console.log(
@@ -188,23 +209,23 @@ async function deduplicateRound(
 }
 
 export async function deduplicate(
-  newsResponse: NewsResponse
-): Promise<NewsResponse> {
-  if (newsResponse.newsItems.length === 0) {
-    return newsResponse;
+  newsItems: SimplifiedNewsItem[]
+): Promise<SimplifiedNewsItem[]> {
+  if (newsItems.length === 0) {
+    return newsItems;
   }
 
   try {
     console.log("🔍 Starting multi-round deduplication");
     const overallStart = Date.now();
 
-    const startingItemCount = newsResponse.newsItems.length;
+    const startingItemCount = newsItems.length;
     const maxRounds = Math.floor(startingItemCount / MIN_ITEMS_PER_ROUND);
     console.log(
       `Starting items: ${startingItemCount}, Max rounds: ${maxRounds}`
     );
 
-    let currentItems = newsResponse.newsItems;
+    let currentItems = newsItems;
     let roundNumber = 1;
     let totalRequests = 0;
     const overallUsage: UsageStats = {
@@ -268,9 +289,9 @@ export async function deduplicate(
       `Overall usage: ${overallUsage.promptTokens.toLocaleString()} prompt + ${overallUsage.completionTokens.toLocaleString()} completion = ${overallUsage.totalTokens.toLocaleString()} total tokens`
     );
 
-    return { newsItems: currentItems };
+    return currentItems;
   } catch (error) {
     console.error("Failed to deduplicate news items:", error);
-    return newsResponse;
+    return newsItems;
   }
 }

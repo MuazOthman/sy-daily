@@ -55,13 +55,13 @@ export const handler: EventBridgeHandler<"Object Created", any, void> = async (
         return rest;
       });
 
-    const deduplicatedNews = await deduplicate({
-      ...summarizedNews.newsResponse,
-      newsItems: prioritizedNews,
-    });
+    // const deduplicatedNews = await deduplicate({
+    //   ...summarizedNews.newsResponse,
+    //   newsItems: prioritizedNews,
+    // });
     const processedNews = {
       ...summarizedNews,
-      newsResponse: deduplicatedNews,
+      newsResponse: [],
     };
     // Upload to S3 with date as key
     const s3Key = key.replace("summarized-news", "deduplicated-news");
