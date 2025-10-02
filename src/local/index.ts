@@ -3,7 +3,7 @@ config();
 
 import { getEpochSecondsMostRecentMidnightInDamascus } from "../utils/dateUtils";
 import { ProcessedNews, ContentLanguage } from "../types";
-import fs from "fs";
+import fs, { existsSync, mkdirSync } from "fs";
 import path from "path";
 import { prioritizeAndFormat } from "../prioritizeAndFormat";
 import { collect } from "../news-collection/collect";
@@ -29,6 +29,12 @@ const CACHE_DEDUPLICATED_NEWS_FILE = path.join(
   "cache",
   "deduplicatedNews.json"
 );
+
+const DEDUPE_OUTPUT_FOLDER = path.join(process.cwd(), "cache", "deduplicate");
+process.env.DEDUPE_OUTPUT_FOLDER = DEDUPE_OUTPUT_FOLDER;
+if (!existsSync(DEDUPE_OUTPUT_FOLDER)) {
+  mkdirSync(DEDUPE_OUTPUT_FOLDER, { recursive: true });
+}
 
 async function getCollectedNews(date: string) {
   try {
@@ -85,12 +91,12 @@ async function getDeduplicatedNews(date: string) {
     throw error;
   }
   const summarizedNews = await getSummarizedNews(date);
-  const prioritizedNews = prioritizeNews(summarizedNews.newsResponse.newsItems)
-    .slice(0, 100)
-    .map((item) => {
-      const { importanceScore, ...rest } = item;
-      return rest;
-    });
+  const prioritizedNews = prioritizeNews(
+    summarizedNews.newsResponse.newsItems
+  ).map((item) => {
+    const { importanceScore, ...rest } = item;
+    return rest;
+  });
   const deduplicatedNews = await deduplicate({
     ...summarizedNews.newsResponse,
     newsItems: prioritizedNews,
