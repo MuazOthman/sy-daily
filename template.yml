@@ -2,6 +2,12 @@ AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: A bot that collects news about Syria from a curated list of sources and posts daily summaries to Telegram
 
+Globals:
+  Function:
+    Runtime: nodejs22.x
+    Architectures:
+      - arm64
+
 Parameters:
   TelegramBotToken:
     Type: String
@@ -32,8 +38,17 @@ Parameters:
   TelegramChannelIdArabic:
     Type: String
     Description: Telegram channel ID for Arabic posts
-
+  GithubToken:
+    Type: String
+    NoEcho: true
+    Description: GitHub token for publishing to website
 Resources:
+  # Custom EventBridge Event Bus for GitHub Actions
+  GitHubActionsEventBus:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name: !Sub GitHubEventBus-${AWS::StackName}
+
   # S3 Bucket for storing news data between Lambda functions
   NewsDataBucket:
     Type: AWS::S3::Bucket
@@ -50,14 +65,11 @@ Resources:
       Handler: Collect.handler
       Timeout: 600 # Increased timeout for web scraping
       MemorySize: 1024
-      Runtime: nodejs22.x
-      Architectures:
-        - arm64
       Events:
         DailySchedule:
           Type: Schedule
           Properties:
-            Schedule: cron(10 21 * * ? *) # Run daily at 21:10 UTC (00:10 Damascus time)
+            Schedule: cron(01 20 * * ? *) # Run daily at 20:01 UTC (23:01 Damascus time)
             Description: Daily execution of the news collection
             Enabled: true
       Policies:
@@ -84,7 +96,6 @@ Resources:
       Handler: Deduplicate.handler
       Timeout: 900 # Increased timeout for AI processing
       MemorySize: 1024
-      Runtime: nodejs22.x
       Policies:
         - AWSLambdaBasicExecutionRole
         - S3CrudPolicy:
@@ -121,8 +132,7 @@ Resources:
       CodeUri: ./lambda/Summarize
       Handler: Summarize.handler
       Timeout: 600 # Increased timeout for AI processing
-      MemorySize: 1024
-      Runtime: nodejs22.x
+      MemorySize: 512
       Policies:
         - AWSLambdaBasicExecutionRole
         - S3CrudPolicy:
@@ -153,6 +163,41 @@ Resources:
                   key:
                     - prefix: "deduplicated-news/"
 
+  PublishToWebsiteFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./lambda/PublishToWebsite
+      Handler: PublishToWebsite.handler
+      Timeout: 60
+      MemorySize: 256
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - S3ReadPolicy:
+            BucketName: !Ref NewsDataBucket
+      Environment:
+        Variables:
+          NODE_OPTIONS: --enable-source-maps
+          NODE_ENV: production
+          IS_LAMBDA: "true"
+          GITHUB_OWNER: "MuazOthman"
+          GITHUB_REPO: "www.syria-daily.com"
+          GITHUB_BRANCH: "main"
+          BASE_PATH: "src/data/blog"
+          GITHUB_TOKEN: !Ref GithubToken
+      Events:
+        FromEventBridge:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source: ["aws.s3"]
+              detail-type: ["Object Created"]
+              detail:
+                bucket:
+                  name: [!Ref NewsDataBucket]
+                object:
+                  key:
+                    - prefix: "summarized-news/"
+
   PostToTelegramEnglishFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -160,9 +205,6 @@ Resources:
       Handler: PostToTelegram.handler
       Timeout: 60
       MemorySize: 512
-      Runtime: nodejs22.x
-      Architectures:
-        - arm64
       Layers:
         - arn:aws:lambda:us-east-1:347599033421:layer:amazon_linux_fonts:1
         - arn:aws:lambda:us-east-1:347599033421:layer:stix-fonts:1
@@ -181,19 +223,15 @@ Resources:
           TELEGRAM_API_HASH: !Ref TelegramApiHash
           SESSION_STRING: !Ref SessionString
           TELEGRAM_CHANNEL_ID: !Ref TelegramChannelIdEnglish
+          BUCKET_NAME: !Ref NewsDataBucket
       Events:
-        FromEventBridge:
+        GitHubActionsEvent:
           Type: EventBridgeRule
           Properties:
+            EventBusName: !Ref GitHubActionsEventBus
             Pattern:
-              source: ["aws.s3"]
-              detail-type: ["Object Created"]
-              detail:
-                bucket:
-                  name: [!Ref NewsDataBucket]
-                object:
-                  key:
-                    - prefix: "summarized-news/"
+              source: ["gh.actions"]
+              detail-type: ["summaries-published"]
 
   PostToTelegramArabicFunction:
     Type: AWS::Serverless::Function
@@ -202,9 +240,6 @@ Resources:
       Handler: PostToTelegram.handler
       Timeout: 60
       MemorySize: 512
-      Runtime: nodejs22.x
-      Architectures:
-        - arm64
       Layers:
         - arn:aws:lambda:us-east-1:347599033421:layer:amazon_linux_fonts:1
         - arn:aws:lambda:us-east-1:347599033421:layer:stix-fonts:1
@@ -223,16 +258,12 @@ Resources:
           TELEGRAM_API_HASH: !Ref TelegramApiHash
           SESSION_STRING: !Ref SessionString
           TELEGRAM_CHANNEL_ID: !Ref TelegramChannelIdArabic
+          BUCKET_NAME: !Ref NewsDataBucket
       Events:
-        FromEventBridge:
+        GitHubActionsEvent:
           Type: EventBridgeRule
           Properties:
+            EventBusName: !Ref GitHubActionsEventBus
             Pattern:
-              source: ["aws.s3"]
-              detail-type: ["Object Created"]
-              detail:
-                bucket:
-                  name: [!Ref NewsDataBucket]
-                object:
-                  key:
-                    - prefix: "summarized-news/"
+              source: ["gh.actions"]
+              detail-type: ["summaries-published"]

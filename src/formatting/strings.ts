@@ -5,6 +5,7 @@ export const KnownStrings = [
   "DailyBriefingForDay",
   "ProcessedThisManyPostsFromThisManySources",
   "ShowMoreItems",
+  "Author",
 ] as const;
 
 export const Strings: Record<
@@ -17,6 +18,7 @@ export const Strings: Record<
     ProcessedThisManyPostsFromThisManySources:
       "بعد معالجة {numberOfPosts} منشوراً من {numberOfSources} مصدراً",
     ShowMoreItems: "عرض المزيد من الأخبار",
+    Author: "فريق الملخص اليومي لأخبار سورية",
   },
   english: {
     Source: "Source",
@@ -24,5 +26,6 @@ export const Strings: Record<
     ProcessedThisManyPostsFromThisManySources:
       "Processed {numberOfPosts} posts from {numberOfSources} sources",
     ShowMoreItems: "Show more items",
+    Author: "Syria Daily Briefing Team",
   },
 };

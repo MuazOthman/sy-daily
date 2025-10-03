@@ -7,9 +7,9 @@ import fs, { existsSync, mkdirSync, writeFileSync } from "fs";
 import path from "path";
 import { prioritizeAndFormat } from "../prioritizeAndFormat";
 import { collect } from "../news-collection/collect";
-import { generateNewsBanner } from "../banner/newsBanner";
-import { TelegramUser } from "../telegram/user";
-import { getMostFrequentLabel } from "../mostFrequentLabel";
+// import { generateNewsBanner } from "../banner/newsBanner";
+// import { TelegramUser } from "../telegram/user";
+import { getMostFrequentLabels } from "../mostFrequentLabel";
 import { summarize } from "../ai/summarize";
 import { deduplicate } from "../ai/deduplicate";
 import { prioritizeNews } from "../prioritizeNews";
@@ -124,7 +124,7 @@ export async function executeForLast24Hours(
     return;
   }
 
-  const mostFrequentLabel = getMostFrequentLabel(formattedNews.newsItems);
+  const mostFrequentLabel = getMostFrequentLabels(formattedNews.newsItems)[0];
 
   console.log(`🔍 Most frequent label: ${mostFrequentLabel}`);
 
@@ -153,16 +153,16 @@ export async function executeForLast24Hours(
     path.join(process.cwd(), "cache", `${date}.${language}.md`),
     markdownNews
   );
-  const banner = await generateNewsBanner(mostFrequentLabel, date, language);
+  // const banner = await generateNewsBanner(mostFrequentLabel, date, language);
 
-  const user = new TelegramUser();
-  await user.login();
-  await user.sendPhotoToChannel(channelId, banner, {
-    caption: formattedNews.message,
-    parseMode: "html",
-    silent: false,
-  });
-  await user.logout();
+  // const user = new TelegramUser();
+  // await user.login();
+  // await user.sendPhotoToChannel(channelId, banner, {
+  //   caption: formattedNews.message,
+  //   parseMode: "html",
+  //   silent: false,
+  // });
+  // await user.logout();
 
   // const bot = new TelegramBot(channelId);
 

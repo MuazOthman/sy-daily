@@ -1,10 +1,12 @@
+import { getMostFrequentLabels } from "../mostFrequentLabel";
 import {
   ProcessedNews,
-  NewsItem,
   ContentLanguage,
   NewsItemWithImportanceScore,
+  NewsItemLabel,
 } from "../types";
 import { Strings } from "./strings";
+import { stringify } from "yaml";
 
 const labelEmojis = {
   president: "🏛️",
@@ -31,11 +33,26 @@ const labelEmojis = {
 
 const MAX_LABELS_TO_DISPLAY = 3;
 
+function getHeader(
+  language: ContentLanguage,
+  date: string,
+  mostFrequentLabels: NewsItemLabel[]
+) {
+  const result = {
+    title: `${Strings[language].DailyBriefingForDay} ${date}`,
+    author: Strings[language].Author,
+    pubDatetime: `${date}T20:00:00.000Z`,
+    description: `${Strings[language].DailyBriefingForDay} ${date}`,
+    tags: mostFrequentLabels,
+  };
+  return stringify(result);
+}
+
 function formatNewsItemForMarkdown(
   language: ContentLanguage,
   item: NewsItemWithImportanceScore
 ): string {
-  const importanceScore = item.importanceScore;
+  // const importanceScore = item.importanceScore;
   const labelText = item.labels
     .slice(0, MAX_LABELS_TO_DISPLAY)
     .map((label) => labelEmojis[label.label] || "📰")
@@ -44,13 +61,13 @@ function formatNewsItemForMarkdown(
   const sourceLinks = item.sources
     .map(
       (source, idx) =>
-        `[${Strings[language].Source}${
+        `<a href="${source}" target="_blank">[${Strings[language].Source}${
           item.sources.length > 1 ? idx + 1 : ""
-        }](${source})`
+        }]</a>`
     )
-    .join(" ");
+    .join(", ");
 
-  return `- ${labelText} ${importanceScore} ${
+  return `- ${labelText} ${
     language === "arabic" ? item.summaryArabic : item.summaryEnglish
   } - ${sourceLinks}`;
 }
@@ -70,9 +87,13 @@ export function newsResponseToMarkdown({
   numberOfPosts,
   numberOfSources,
 }: MarkdownFormatterInput): string {
-  const header = `# 📅 ${
-    Strings[language].DailyBriefingForDay
-  } ${date}\n\n📊 ${Strings[
+  const mostFrequentLabels = getMostFrequentLabels(
+    newsResponse.newsItems
+  ).slice(0, 3);
+
+  const header = getHeader(language, date, mostFrequentLabels);
+
+  const firstLine = `${Strings[
     language
   ].ProcessedThisManyPostsFromThisManySources.replace(
     "{numberOfPosts}",
@@ -87,15 +108,15 @@ export function newsResponseToMarkdown({
     .map((item) => formatNewsItemForMarkdown(language, item))
     .join("\n");
 
-  if (remainingBatch.length === 0) {
-    return `${header}${formattedFirstItems}`;
+  let collapsibleSection = "";
+
+  if (remainingBatch.length > 0) {
+    const formattedRemainingItems = remainingBatch
+      .map((item) => formatNewsItemForMarkdown(language, item))
+      .join("\n");
+
+    collapsibleSection = `\n\n<details>\n<summary>${Strings[language].ShowMoreItems}</summary>\n\n${formattedRemainingItems}\n</details>`;
   }
 
-  const formattedRemainingItems = remainingBatch
-    .map((item) => formatNewsItemForMarkdown(language, item))
-    .join("\n");
-
-  const collapsibleSection = `\n\n<details>\n<summary>${Strings[language].ShowMoreItems}</summary>\n\n${formattedRemainingItems}\n</details>`;
-
-  return `${header}${formattedFirstItems}${collapsibleSection}`;
+  return `---\n${header}\n---\n\n${firstLine}${formattedFirstItems}${collapsibleSection}\n`;
 }

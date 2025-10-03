@@ -16,7 +16,7 @@ const DEDUPLICATION_RATIO_THRESHOLD = 0.98;
 const MIN_ITEMS_PER_ROUND = 30;
 
 async function writeToFile(
-  items: SimplifiedNewsItem[],
+  items: (SimplifiedNewsItem | string)[],
   type: "input" | "output",
   roundNumber: number,
   batchNumber?: number
@@ -52,7 +52,7 @@ interface UsageStats {
 }
 
 async function deduplicateBatch(
-  newsItems: SimplifiedNewsItem[],
+  newsItems: (SimplifiedNewsItem | string)[],
   roundNumber: number,
   batchNumber: number
 ): Promise<{ items: SimplifiedNewsItem[]; usage: UsageStats }> {
@@ -97,7 +97,7 @@ async function deduplicateBatch(
 }
 
 async function processBatchesInParallel(
-  batches: SimplifiedNewsItem[][],
+  batches: (SimplifiedNewsItem | string)[][],
   roundNumber: number
 ): Promise<{
   batchResults: SimplifiedNewsItem[][];
@@ -249,10 +249,10 @@ async function deduplicateRound(
 }
 
 export async function deduplicate(
-  newsItems: SimplifiedNewsItem[]
+  newsItems: string[]
 ): Promise<SimplifiedNewsItem[]> {
   if (newsItems.length === 0) {
-    return newsItems;
+    return [];
   }
 
   try {
@@ -267,7 +267,7 @@ export async function deduplicate(
 
     // Initial round: split items into batches normally (no round-robin yet)
     console.log(`\n🔄 Round 1: Processing ${startingItemCount} items`);
-    const initialBatches: SimplifiedNewsItem[][] = [];
+    const initialBatches: string[][] = [];
     for (let i = 0; i < newsItems.length; i += BATCH_SIZE) {
       initialBatches.push(newsItems.slice(i, i + BATCH_SIZE));
     }
@@ -372,6 +372,6 @@ export async function deduplicate(
     return finalItems;
   } catch (error) {
     console.error("Failed to deduplicate news items:", error);
-    return newsItems;
+    return [];
   }
 }

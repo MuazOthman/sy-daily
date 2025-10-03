@@ -6,7 +6,7 @@ import {
   ContentLanguages,
 } from "../types";
 import { prioritizeAndFormat } from "../prioritizeAndFormat";
-import { getMostFrequentLabel } from "../mostFrequentLabel";
+import { getMostFrequentLabels } from "../mostFrequentLabel";
 import { TelegramUser } from "../telegram/user";
 import { addDateToBanner } from "../banner/newsBanner";
 
@@ -40,16 +40,27 @@ if (isNaN(parseInt(CHANNEL_ID))) {
   CHANNEL_ID_NUMBER = parseInt(CHANNEL_ID);
 }
 
-export const handler: EventBridgeHandler<"Object Created", any, void> = async (
+type Payload = {
+  date: string;
+};
+
+if (!process.env.BUCKET_NAME) {
+  throw new Error("BUCKET_NAME is not set");
+}
+
+const BUCKET_NAME = process.env.BUCKET_NAME;
+
+export const handler: EventBridgeHandler<string, Payload, void> = async (
   event
 ) => {
   console.log("Received EventBridge event:", JSON.stringify(event));
 
   try {
-    // Extract S3 details from EventBridge event
-    const detail = event.detail;
-    const bucket = detail.bucket?.name;
-    const key = detail.object?.key;
+    const date = event.detail.date;
+    const bucket = BUCKET_NAME;
+    const key = `summarized-news/${date}.json`;
+
+    console.log(`Processing S3 object: ${bucket}/${key}`);
 
     if (!bucket || !key) {
       throw new Error("Missing bucket or key in EventBridge event detail");
@@ -85,7 +96,7 @@ export const handler: EventBridgeHandler<"Object Created", any, void> = async (
       return;
     }
 
-    const mostFrequentLabel = getMostFrequentLabel(formattedNews.newsItems);
+    const mostFrequentLabel = getMostFrequentLabels(formattedNews.newsItems)[0];
     console.log(`🔍 Most frequent label: ${mostFrequentLabel}`);
 
     console.log("Posting summary to Telegram...");

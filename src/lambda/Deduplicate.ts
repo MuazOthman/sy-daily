@@ -5,8 +5,11 @@ import {
   GetObjectCommand,
 } from "@aws-sdk/client-s3";
 import { deduplicate } from "../ai/deduplicate";
-import { CollectedNewsDataSchema } from "../types";
-import { prioritizeNews } from "../prioritizeNews";
+import {
+  CollectedNewsDataSchema,
+  SimplifiedNewsResponse,
+  SimplifiedNewsWithMetadata,
+} from "../types";
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION || "us-east-1",
@@ -46,17 +49,12 @@ export const handler: EventBridgeHandler<"Object Created", any, void> = async (
     const content = await response.Body.transformToString();
     const collectedNews = CollectedNewsDataSchema.parse(JSON.parse(content));
 
-    const prioritizedNews = prioritizeNews(collectedNews.newsItems)
-      .slice(0, 100)
-      .map((item) => {
-        const { importanceScore, ...rest } = item;
-        return rest;
-      });
-
-    const deduplicatedNews = await deduplicate(prioritizedNews);
-    const processedNews = {
-      ...collectedNews,
-      newsItems: deduplicatedNews,
+    const deduplicatedNews = await deduplicate(collectedNews.newsItems);
+    const processedNews: SimplifiedNewsWithMetadata = {
+      items: deduplicatedNews,
+      numberOfPosts: collectedNews.numberOfPosts,
+      numberOfSources: collectedNews.numberOfSources,
+      date: collectedNews.date,
     };
     // Upload to S3 with date as key
     const s3Key = key.replace("collected-news", "deduplicated-news");

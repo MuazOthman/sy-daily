@@ -103,6 +103,17 @@ export type SimplifiedNewsResponse = z.infer<
   typeof SimplifiedNewsResponseSchema
 >;
 
+export const SimplifiedNewsWithMetadataSchema = z.object({
+  items: z.array(SimplifiedNewsItemSchema),
+  numberOfPosts: z.number(),
+  numberOfSources: z.number(),
+  date: z.string(),
+});
+
+export type SimplifiedNewsWithMetadata = z.infer<
+  typeof SimplifiedNewsWithMetadataSchema
+>;
+
 export const ProcessedNewsSchema = z.object({
   newsResponse: NewsResponseSchema,
   numberOfPosts: z.number(),

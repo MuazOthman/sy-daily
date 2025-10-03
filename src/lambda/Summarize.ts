@@ -5,7 +5,12 @@ import {
   GetObjectCommand,
 } from "@aws-sdk/client-s3";
 import { summarize } from "../ai/summarize";
-import { CollectedNewsDataSchema } from "../types";
+import {
+  CollectedNewsDataSchema,
+  ProcessedNews,
+  SimplifiedNewsResponseSchema,
+  SimplifiedNewsWithMetadataSchema,
+} from "../types";
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION || "us-east-1",
@@ -43,12 +48,20 @@ export const handler: EventBridgeHandler<"Object Created", any, void> = async (
       throw new Error("No data received from S3");
     }
     const content = await response.Body.transformToString();
-    const deduplicatedNews = CollectedNewsDataSchema.parse(JSON.parse(content));
+    const deduplicatedNews = SimplifiedNewsWithMetadataSchema.parse(
+      JSON.parse(content)
+    );
 
-    const summarizedNews = await summarize(deduplicatedNews.newsItems);
-    const processedNews = {
-      ...deduplicatedNews,
+    const summarizedNews = await summarize(
+      deduplicatedNews.items.map(
+        (item) => `${item.text}\n\n${item.sources.join("\n")}`
+      )
+    );
+    const processedNews: ProcessedNews = {
       newsResponse: summarizedNews,
+      numberOfPosts: deduplicatedNews.numberOfPosts,
+      numberOfSources: deduplicatedNews.numberOfSources,
+      date: deduplicatedNews.date,
     };
     const s3Key = key.replace("deduplicated-news", "summarized-news");
 
