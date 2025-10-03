@@ -8,11 +8,11 @@ import { getLLMProvider } from "./getLLMProvider";
 import fs from "node:fs/promises";
 
 const MAX_OUTPUT_TOKENS = 60000;
-const BATCH_SIZE = 30;
+const BATCH_SIZE = 150;
 const MAX_PARALLEL_REQUESTS = 5;
 const BATCH_WAIT_TIME_MS = 2000; // 2 seconds
 const ROUND_WAIT_TIME_MS = 4000; // 4 seconds
-const DEDUPLICATION_RATIO_THRESHOLD = 0.95;
+const DEDUPLICATION_RATIO_THRESHOLD = 0.98;
 const MIN_ITEMS_PER_ROUND = 30;
 
 async function writeToFile(
@@ -100,11 +100,11 @@ async function processBatchesInParallel(
   batches: SimplifiedNewsItem[][],
   roundNumber: number
 ): Promise<{
-  items: SimplifiedNewsItem[];
+  batchResults: SimplifiedNewsItem[][];
   requestCount: number;
   usage: UsageStats;
 }> {
-  const results: SimplifiedNewsItem[] = [];
+  const batchResults: SimplifiedNewsItem[][] = [];
   let requestCount = 0;
   const totalUsage: UsageStats = {
     promptTokens: 0,
@@ -120,14 +120,14 @@ async function processBatchesInParallel(
       }`
     );
 
-    const batchResults = await Promise.all(
+    const results = await Promise.all(
       batchGroup.map((batch, index) =>
         deduplicateBatch(batch, roundNumber, index + i + 1)
       )
     );
 
-    batchResults.forEach((result) => {
-      results.push(...result.items);
+    results.forEach((result) => {
+      batchResults.push(result.items);
       totalUsage.promptTokens += result.usage.promptTokens;
       totalUsage.completionTokens += result.usage.completionTokens;
       totalUsage.totalTokens += result.usage.totalTokens;
@@ -143,7 +143,7 @@ async function processBatchesInParallel(
     }
   }
 
-  return { items: results, requestCount, usage: totalUsage };
+  return { batchResults, requestCount, usage: totalUsage };
 }
 
 function shuffleArray<T>(array: T[]): T[] {
@@ -156,41 +156,81 @@ function shuffleArray<T>(array: T[]): T[] {
 }
 
 async function deduplicateRound(
-  newsItems: SimplifiedNewsItem[],
+  previousBatchResults: SimplifiedNewsItem[][],
   roundNumber: number
 ): Promise<{
-  items: SimplifiedNewsItem[];
+  batchResults: SimplifiedNewsItem[][];
   requestCount: number;
   usage: UsageStats;
 }> {
-  const startCount = newsItems.length;
+  // Calculate total items from previous round batches
+  const startCount = previousBatchResults.reduce(
+    (sum, batch) => sum + batch.length,
+    0
+  );
   console.log(`\n🔄 Round ${roundNumber}: Processing ${startCount} items`);
+  console.log(
+    `  Redistributing from ${previousBatchResults.length} batches (round-robin)`
+  );
 
-  // Shuffle items before splitting into batches (except first round)
-  const itemsToProcess = roundNumber > 1 ? shuffleArray(newsItems) : newsItems;
-  if (roundNumber > 1) {
-    console.log(`  Items shuffled for round ${roundNumber}`);
+  // Redistribute items using round-robin from previous batch results
+  const batches: SimplifiedNewsItem[][] = [];
+  let currentBatch: SimplifiedNewsItem[] = [];
+  let sourceIndex = 0;
+
+  while (previousBatchResults.some((batch) => batch.length > 0)) {
+    // Find next non-empty batch in round-robin fashion
+    let attempts = 0;
+    while (
+      attempts < previousBatchResults.length &&
+      previousBatchResults[sourceIndex].length === 0
+    ) {
+      sourceIndex = (sourceIndex + 1) % previousBatchResults.length;
+      attempts++;
+    }
+
+    // If all batches are empty, break
+    if (attempts === previousBatchResults.length) {
+      break;
+    }
+
+    // Take one item from current source batch
+    const item = previousBatchResults[sourceIndex].shift();
+    if (item) {
+      currentBatch.push(item);
+    }
+
+    // Move to next source batch for next iteration
+    sourceIndex = (sourceIndex + 1) % previousBatchResults.length;
+
+    // If current batch is full, start a new one
+    if (currentBatch.length === BATCH_SIZE) {
+      batches.push(currentBatch);
+      currentBatch = [];
+    }
   }
 
-  // Split into batches
-  const batches: SimplifiedNewsItem[][] = [];
-  for (let i = 0; i < itemsToProcess.length; i += BATCH_SIZE) {
-    batches.push(itemsToProcess.slice(i, i + BATCH_SIZE));
+  // Add any remaining items as the last batch
+  if (currentBatch.length > 0) {
+    batches.push(currentBatch);
   }
 
   console.log(
-    `  Split into ${batches.length} batches of up to ${BATCH_SIZE} items`
+    `  Redistributed into ${batches.length} batches of up to ${BATCH_SIZE} items`
   );
 
-  await writeToFile(newsItems, "input", roundNumber, undefined);
+  // Flatten for file writing
+  const allItems = batches.flat();
+  await writeToFile(allItems, "input", roundNumber, undefined);
 
   // Process batches in parallel
-  const {
-    items: deduplicatedItems,
-    requestCount,
-    usage,
-  } = await processBatchesInParallel(batches, roundNumber);
+  const { batchResults, requestCount, usage } = await processBatchesInParallel(
+    batches,
+    roundNumber
+  );
 
+  // Flatten for file writing
+  const deduplicatedItems = batchResults.flat();
   await writeToFile(deduplicatedItems, "output", roundNumber, undefined);
 
   const endCount = deduplicatedItems.length;
@@ -205,7 +245,7 @@ async function deduplicateRound(
     `  Round ${roundNumber} usage: ${usage.promptTokens.toLocaleString()} prompt + ${usage.completionTokens.toLocaleString()} completion = ${usage.totalTokens.toLocaleString()} total tokens`
   );
 
-  return { items: deduplicatedItems, requestCount, usage };
+  return { batchResults, requestCount, usage };
 }
 
 export async function deduplicate(
@@ -225,37 +265,76 @@ export async function deduplicate(
       `Starting items: ${startingItemCount}, Max rounds: ${maxRounds}`
     );
 
-    let currentItems = newsItems;
-    let roundNumber = 1;
-    let totalRequests = 0;
+    // Initial round: split items into batches normally (no round-robin yet)
+    console.log(`\n🔄 Round 1: Processing ${startingItemCount} items`);
+    const initialBatches: SimplifiedNewsItem[][] = [];
+    for (let i = 0; i < newsItems.length; i += BATCH_SIZE) {
+      initialBatches.push(newsItems.slice(i, i + BATCH_SIZE));
+    }
+    console.log(
+      `  Split into ${initialBatches.length} batches of up to ${BATCH_SIZE} items`
+    );
+
+    await writeToFile(newsItems, "input", 1, undefined);
+
+    const {
+      batchResults: currentBatchResults,
+      requestCount: firstRequestCount,
+      usage: firstUsage,
+    } = await processBatchesInParallel(initialBatches, 1);
+
+    const firstRoundItems = currentBatchResults.flat();
+    await writeToFile(firstRoundItems, "output", 1, undefined);
+
+    console.log(
+      `  Round 1 complete: ${startingItemCount} → ${
+        firstRoundItems.length
+      } items (ratio: ${(firstRoundItems.length / startingItemCount).toFixed(
+        2
+      )}, ${firstRequestCount} LLM requests)`
+    );
+    console.log(
+      `  Round 1 usage: ${firstUsage.promptTokens.toLocaleString()} prompt + ${firstUsage.completionTokens.toLocaleString()} completion = ${firstUsage.totalTokens.toLocaleString()} total tokens`
+    );
+
+    let previousBatchResults = currentBatchResults;
+    let totalRequests = firstRequestCount;
     const overallUsage: UsageStats = {
-      promptTokens: 0,
-      completionTokens: 0,
-      totalTokens: 0,
+      promptTokens: firstUsage.promptTokens,
+      completionTokens: firstUsage.completionTokens,
+      totalTokens: firstUsage.totalTokens,
     };
 
+    // Continue with subsequent rounds using round-robin redistribution
+    let roundNumber = 2;
     while (roundNumber <= maxRounds) {
-      const beforeCount = currentItems.length;
+      const beforeCount = previousBatchResults.reduce(
+        (sum, batch) => sum + batch.length,
+        0
+      );
 
-      const { items, requestCount, usage } = await deduplicateRound(
-        currentItems,
+      const { batchResults, requestCount, usage } = await deduplicateRound(
+        previousBatchResults,
         roundNumber
       );
-      currentItems = items;
+      previousBatchResults = batchResults;
       totalRequests += requestCount;
       overallUsage.promptTokens += usage.promptTokens;
       overallUsage.completionTokens += usage.completionTokens;
       overallUsage.totalTokens += usage.totalTokens;
 
-      const afterCount = currentItems.length;
+      const afterCount = batchResults.reduce(
+        (sum, batch) => sum + batch.length,
+        0
+      );
       const ratio = afterCount / beforeCount;
 
       // Check if we should continue
-      if (ratio > DEDUPLICATION_RATIO_THRESHOLD) {
+      if (ratio >= DEDUPLICATION_RATIO_THRESHOLD) {
         console.log(
           `\n✋ Stopping: ratio ${ratio.toFixed(
             2
-          )} > ${DEDUPLICATION_RATIO_THRESHOLD}`
+          )} >= ${DEDUPLICATION_RATIO_THRESHOLD}`
         );
         break;
       }
@@ -263,7 +342,7 @@ export async function deduplicate(
       roundNumber++;
 
       // Wait between rounds if we're continuing
-      if (roundNumber <= maxRounds && ratio <= DEDUPLICATION_RATIO_THRESHOLD) {
+      if (roundNumber <= maxRounds && ratio < DEDUPLICATION_RATIO_THRESHOLD) {
         console.log(
           `\n⏳ Waiting ${ROUND_WAIT_TIME_MS / 1000}s before next round...`
         );
@@ -271,6 +350,7 @@ export async function deduplicate(
       }
     }
 
+    const finalItems = previousBatchResults.flat();
     const overallEnd = Date.now();
     console.log(
       `\n✅ Deduplication completed in ${(
@@ -279,8 +359,8 @@ export async function deduplicate(
       ).toFixed(1)}s`
     );
     console.log(
-      `Final result: ${startingItemCount} → ${currentItems.length} items (${(
-        (currentItems.length / startingItemCount) *
+      `Final result: ${startingItemCount} → ${finalItems.length} items (${(
+        (finalItems.length / startingItemCount) *
         100
       ).toFixed(1)}% remaining)`
     );
@@ -289,7 +369,7 @@ export async function deduplicate(
       `Overall usage: ${overallUsage.promptTokens.toLocaleString()} prompt + ${overallUsage.completionTokens.toLocaleString()} completion = ${overallUsage.totalTokens.toLocaleString()} total tokens`
     );
 
-    return currentItems;
+    return finalItems;
   } catch (error) {
     console.error("Failed to deduplicate news items:", error);
     return newsItems;

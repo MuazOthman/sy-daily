@@ -5,7 +5,7 @@ import {
   GetObjectCommand,
 } from "@aws-sdk/client-s3";
 import { deduplicate } from "../ai/deduplicate";
-import { ProcessedNewsSchema } from "../types";
+import { CollectedNewsDataSchema } from "../types";
 import { prioritizeNews } from "../prioritizeNews";
 
 const s3Client = new S3Client({
@@ -44,27 +44,22 @@ export const handler: EventBridgeHandler<"Object Created", any, void> = async (
       throw new Error("No data received from S3");
     }
     const content = await response.Body.transformToString();
-    const summarizedNews = ProcessedNewsSchema.parse(JSON.parse(content));
+    const collectedNews = CollectedNewsDataSchema.parse(JSON.parse(content));
 
-    const prioritizedNews = prioritizeNews(
-      summarizedNews.newsResponse.newsItems
-    )
+    const prioritizedNews = prioritizeNews(collectedNews.newsItems)
       .slice(0, 100)
       .map((item) => {
         const { importanceScore, ...rest } = item;
         return rest;
       });
 
-    // const deduplicatedNews = await deduplicate({
-    //   ...summarizedNews.newsResponse,
-    //   newsItems: prioritizedNews,
-    // });
+    const deduplicatedNews = await deduplicate(prioritizedNews);
     const processedNews = {
-      ...summarizedNews,
-      newsResponse: [],
+      ...collectedNews,
+      newsItems: deduplicatedNews,
     };
     // Upload to S3 with date as key
-    const s3Key = key.replace("summarized-news", "deduplicated-news");
+    const s3Key = key.replace("collected-news", "deduplicated-news");
 
     await s3Client.send(
       new PutObjectCommand({

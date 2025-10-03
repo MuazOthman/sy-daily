@@ -1,4 +1,10 @@
 {
-  "cSpell.words": ["ـــــــــــــــــــــ", "domcontentloaded", "rbct"],
+  "cSpell.words": [
+    "ـــــــــــــــــــــ",
+    "Alekhbariah",
+    "domcontentloaded",
+    "rbct",
+    "tgme"
+  ],
   "cSpell.ignorePaths": ["tests/article-samples/**", "channels.json"]
 }

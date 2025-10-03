@@ -43,14 +43,14 @@ export const handler: EventBridgeHandler<"Object Created", any, void> = async (
       throw new Error("No data received from S3");
     }
     const content = await response.Body.transformToString();
-    const collectedNews = CollectedNewsDataSchema.parse(JSON.parse(content));
+    const deduplicatedNews = CollectedNewsDataSchema.parse(JSON.parse(content));
 
-    const summarizedNews = await summarize(collectedNews.newsItems);
+    const summarizedNews = await summarize(deduplicatedNews.newsItems);
     const processedNews = {
-      ...collectedNews,
+      ...deduplicatedNews,
       newsResponse: summarizedNews,
     };
-    const s3Key = key.replace("collected-news", "summarized-news");
+    const s3Key = key.replace("deduplicated-news", "summarized-news");
 
     await s3Client.send(
       new PutObjectCommand({

@@ -1,12 +1,11 @@
-import { TelegramClient } from "telegram";
-import { Api } from "telegram";
 import * as fs from "fs";
 import * as path from "path";
-import { getEpochSecondsMostRecentMidnightInDamascus } from "../../utils/dateUtils";
+import { getEpochSecondsMostRecent_11_PM_InDamascus } from "../../utils/dateUtils";
 import { TelegramPost, ChannelConfig } from "../../types";
 import { TelegramUser } from "../../telegram/user";
+import { getPostsForAllChannels } from "./telegramScraper";
 
-function loadChannelConfig(): ChannelConfig {
+export function loadChannelConfig(): ChannelConfig {
   try {
     const configPath = path.join(process.cwd(), "channels.json");
     const configFile = fs.readFileSync(configPath, "utf-8");
@@ -20,123 +19,22 @@ function loadChannelConfig(): ChannelConfig {
   }
 }
 
-async function getPostsFromChannel(
-  client: TelegramClient,
-  channelUsername: string,
-  earliestDate: number,
-  latestDate: number
-): Promise<TelegramPost[]> {
-  const channel = await client.getEntity(channelUsername);
-  let detectedDate = latestDate + 1;
-  const posts: TelegramPost[] = [];
-
-  while (detectedDate > earliestDate) {
-    console.log(
-      `🔍 Searching @${channelUsername} for messages from ${detectedDate} = ${new Date(
-        detectedDate * 1000
-      ).toISOString()}`
-    );
-
-    const messages = await client.getMessages(channel, {
-      limit: 100,
-      offsetDate: detectedDate,
-    });
-
-    for (const msg of messages) {
-      if (msg instanceof Api.Message) {
-        if (msg.date <= earliestDate) {
-          console.log(
-            `Message date ${new Date(
-              msg.date * 1000
-            ).toISOString()} is before earliest date ${new Date(
-              earliestDate * 1000
-            ).toISOString()} - breaking`
-          );
-          break;
-        }
-
-        let textContent = "";
-
-        // Get main message text
-        if (msg.message) {
-          textContent = msg.message;
-        }
-
-        // Get media caption if available (ignoring the actual media)
-        if (msg.media && msg.message) {
-          // Message already contains the caption, so we're good
-        } else if (msg.media && !msg.message) {
-          // Check if there's a caption in the media
-          if ("caption" in msg.media && typeof msg.media.caption === "string") {
-            textContent = msg.media.caption;
-          }
-        }
-
-        // Only add posts with text content
-        if (textContent.trim()) {
-          posts.push({
-            message: textContent,
-            telegramId: msg.id,
-            channelUsername: channelUsername,
-          });
-        }
-      }
-    }
-
-    if (messages.length === 0) break;
-    detectedDate = messages[messages.length - 1].date;
-  }
-
-  return posts;
-}
-
 export async function getPostsInLast24Hours(
   specifiedDate?: Date
-): Promise<TelegramPost[]> {
-  const config = loadChannelConfig();
-  const user = new TelegramUser();
-  const client = await user.login();
+): Promise<Record<string, string[]>> {
+  console.log("Getting posts in last 24 hours...");
+  const channels = loadChannelConfig();
 
-  console.log("Telegram Client: Logged in!");
+  const latestEpoch = getEpochSecondsMostRecent_11_PM_InDamascus(specifiedDate);
+  const latestDate = new Date(latestEpoch * 1000);
+  const earliestEpoch = latestEpoch - 60 * 60 * 24;
+  const earliestDate = new Date(earliestEpoch * 1000);
 
-  const latestDate = getEpochSecondsMostRecentMidnightInDamascus(specifiedDate);
-  const earliestDate = latestDate - 60 * 60 * 24;
-
-  console.log(
-    `🔍 Searching for messages back to ${earliestDate} = ${new Date(
-      earliestDate * 1000
-    ).toISOString()}`
+  const allPostsDictionary = await getPostsForAllChannels(
+    channels.channels.map((channel) => channel.handle),
+    earliestDate,
+    latestDate
   );
 
-  const allPosts: TelegramPost[] = [];
-
-  for (const channel of config.channels) {
-    try {
-      const handle = channel.handle.replace("@", "");
-      console.log(
-        `\n📱 Processing channel: ${channel.name} (@${channel.handle})`
-      );
-      const channelPosts = await getPostsFromChannel(
-        client,
-        handle,
-        earliestDate,
-        latestDate
-      );
-      allPosts.push(...channelPosts);
-      console.log(
-        `📝 Found ${channelPosts.length} posts from ${channel.name} (@${channel.handle})`
-      );
-    } catch (error) {
-      console.error(
-        `❌ Error processing channel ${channel.name} (@${channel.handle}):`,
-        error
-      );
-    }
-  }
-
-  console.log(`\n📝 Total posts found across all channels: ${allPosts.length}`);
-
-  await user.logout();
-
-  return allPosts;
+  return allPostsDictionary;
 }

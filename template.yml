@@ -52,7 +52,7 @@ Resources:
       MemorySize: 1024
       Runtime: nodejs22.x
       Architectures:
-        - x86_64
+        - arm64
       Events:
         DailySchedule:
           Type: Schedule
@@ -76,6 +76,44 @@ Resources:
           OPENAI_API_KEY: !Ref OpenaiApiKey
           ANTHROPIC_API_KEY: !Ref AnthropicApiKey
           AI_MODEL: !Ref AiModel
+
+  DeduplicateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./lambda/Deduplicate
+      Handler: Deduplicate.handler
+      Timeout: 900 # Increased timeout for AI processing
+      MemorySize: 1024
+      Runtime: nodejs22.x
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - S3CrudPolicy:
+            BucketName: !Ref NewsDataBucket
+      Environment:
+        Variables:
+          NODE_OPTIONS: --enable-source-maps
+          NODE_ENV: production
+          IS_LAMBDA: "true"
+          S3_BUCKET_NAME: !Ref NewsDataBucket
+          TELEGRAM_API_ID: !Ref TelegramApiId
+          TELEGRAM_API_HASH: !Ref TelegramApiHash
+          SESSION_STRING: !Ref SessionString
+          OPENAI_API_KEY: !Ref OpenaiApiKey
+          ANTHROPIC_API_KEY: !Ref AnthropicApiKey
+          AI_MODEL: !Ref AiModel
+      Events:
+        FromEventBridge:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source: ["aws.s3"]
+              detail-type: ["Object Created"]
+              detail:
+                bucket:
+                  name: [!Ref NewsDataBucket]
+                object:
+                  key:
+                    - prefix: "collected-news/"
 
   SummarizeFunction:
     Type: AWS::Serverless::Function
@@ -113,45 +151,7 @@ Resources:
                   name: [!Ref NewsDataBucket]
                 object:
                   key:
-                    - prefix: "collected-news/"
-
-  DeduplicateFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: ./lambda/Deduplicate
-      Handler: Deduplicate.handler
-      Timeout: 600 # Increased timeout for AI processing
-      MemorySize: 1024
-      Runtime: nodejs22.x
-      Policies:
-        - AWSLambdaBasicExecutionRole
-        - S3CrudPolicy:
-            BucketName: !Ref NewsDataBucket
-      Environment:
-        Variables:
-          NODE_OPTIONS: --enable-source-maps
-          NODE_ENV: production
-          IS_LAMBDA: "true"
-          S3_BUCKET_NAME: !Ref NewsDataBucket
-          TELEGRAM_API_ID: !Ref TelegramApiId
-          TELEGRAM_API_HASH: !Ref TelegramApiHash
-          SESSION_STRING: !Ref SessionString
-          OPENAI_API_KEY: !Ref OpenaiApiKey
-          ANTHROPIC_API_KEY: !Ref AnthropicApiKey
-          AI_MODEL: !Ref AiModel
-      Events:
-        FromEventBridge:
-          Type: EventBridgeRule
-          Properties:
-            Pattern:
-              source: ["aws.s3"]
-              detail-type: ["Object Created"]
-              detail:
-                bucket:
-                  name: [!Ref NewsDataBucket]
-                object:
-                  key:
-                    - prefix: "summarized-news/"
+                    - prefix: "deduplicated-news/"
 
   PostToTelegramEnglishFunction:
     Type: AWS::Serverless::Function
@@ -193,7 +193,7 @@ Resources:
                   name: [!Ref NewsDataBucket]
                 object:
                   key:
-                    - prefix: "deduplicated-news/"
+                    - prefix: "summarized-news/"
 
   PostToTelegramArabicFunction:
     Type: AWS::Serverless::Function
@@ -235,4 +235,4 @@ Resources:
                   name: [!Ref NewsDataBucket]
                 object:
                   key:
-                    - prefix: "deduplicated-news/"
+                    - prefix: "summarized-news/"

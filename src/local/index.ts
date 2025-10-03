@@ -1,7 +1,7 @@
 import { config } from "dotenv";
 config();
 
-import { getEpochSecondsMostRecentMidnightInDamascus } from "../utils/dateUtils";
+import { getEpochSecondsMostRecent_11_PM_InDamascus } from "../utils/dateUtils";
 import { ProcessedNews, ContentLanguage, CollectedNewsData } from "../types";
 import fs, { existsSync, mkdirSync, writeFileSync } from "fs";
 import path from "path";
@@ -111,7 +111,7 @@ export async function executeForLast24Hours(
   channelId: number,
   simulate = false
 ) {
-  const date = new Date(getEpochSecondsMostRecentMidnightInDamascus() * 1000)
+  const date = new Date(getEpochSecondsMostRecent_11_PM_InDamascus() * 1000)
     .toISOString()
     .split("T")[0];
 
@@ -153,16 +153,16 @@ export async function executeForLast24Hours(
     path.join(process.cwd(), "cache", `${date}.${language}.md`),
     markdownNews
   );
-  // const banner = await generateNewsBanner(mostFrequentLabel, date, language);
+  const banner = await generateNewsBanner(mostFrequentLabel, date, language);
 
-  // const user = new TelegramUser();
-  // await user.login();
-  // await user.sendPhotoToChannel(channelId, banner, {
-  //   caption: formattedNews.message,
-  //   parseMode: "html",
-  //   silent: false,
-  // });
-  // await user.logout();
+  const user = new TelegramUser();
+  await user.login();
+  await user.sendPhotoToChannel(channelId, banner, {
+    caption: formattedNews.message,
+    parseMode: "html",
+    silent: false,
+  });
+  await user.logout();
 
   // const bot = new TelegramBot(channelId);
 
