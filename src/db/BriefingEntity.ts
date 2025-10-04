@@ -158,8 +158,8 @@ export async function updateBriefingDeduplicated({
     typeof deduplicatedTime === "string"
       ? deduplicatedTime
       : deduplicatedTime.toISOString();
-  await BriefingEntity.build(UpdateItemCommand)
-    .item({ date, deduplicatedTime: time, deduplicatedUsage })
+  await BriefingEntity.build(PutItemCommand)
+    .item({ ...currentBriefing, deduplicatedTime: time, deduplicatedUsage })
     .send();
 }
 
@@ -183,8 +183,8 @@ export async function updateBriefingSummarizedTime({
     typeof summarizedTime === "string"
       ? summarizedTime
       : summarizedTime.toISOString();
-  await BriefingEntity.build(UpdateItemCommand)
-    .item({ date, summarizedTime: time, summarizedUsage })
+  await BriefingEntity.build(PutItemCommand)
+    .item({ ...currentBriefing, summarizedTime: time, summarizedUsage })
     .send();
 }
 
