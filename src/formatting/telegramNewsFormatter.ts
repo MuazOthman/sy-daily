@@ -31,6 +31,7 @@ const labelEmojis = {
 };
 
 const MAX_LABELS_TO_DISPLAY = 1;
+const MAX_SUMMARY_LENGTH = 2400;
 
 function formatNewsItemForTelegram(
   language: ContentLanguage,
@@ -81,7 +82,7 @@ ${formattedNewsItems}\n\n${Strings[language].TelegramFooter.replace(
 
   const { length } = measureTelegramRenderedHtml(msgHtml);
 
-  if (length > 2400) {
+  if (length > MAX_SUMMARY_LENGTH) {
     console.log(
       `🔍 Message too long (${msgHtml.length} characters), skipping ${skipItems} items`
     );
