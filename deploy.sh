@@ -16,7 +16,8 @@ docker run --rm -v "$(pwd)":/host -w /tmp node:22-slim sh -c '
   npm init -y && 
   npm install --include=optional sharp@0.34.3 && 
   cp -r node_modules /host/.aws-sam/build/PostToTelegramArabicFunction/ &&
-  cp -r node_modules /host/.aws-sam/build/PostToTelegramEnglishFunction/
+  cp -r node_modules /host/.aws-sam/build/PostToTelegramEnglishFunction/ &&
+  cp -r node_modules /host/.aws-sam/build/PublishToWebsiteFunction/
 '
 
 # Copy sharp binaries to Lambda function builds

@@ -5,12 +5,12 @@ import {
   GetObjectCommand,
 } from "@aws-sdk/client-s3";
 import { summarize } from "../ai/summarize";
+import { ProcessedNews, SimplifiedNewsWithMetadataSchema } from "../types";
 import {
-  CollectedNewsDataSchema,
-  ProcessedNews,
-  SimplifiedNewsResponseSchema,
-  SimplifiedNewsWithMetadataSchema,
-} from "../types";
+  getBriefing,
+  updateBriefingSummarizedTime,
+} from "../db/BriefingEntity";
+import { getCurrentUsage, resetCurrentUsage } from "../ai/getLLMProvider";
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION || "us-east-1",
@@ -51,6 +51,18 @@ export const handler: EventBridgeHandler<"Object Created", any, void> = async (
     const deduplicatedNews = SimplifiedNewsWithMetadataSchema.parse(
       JSON.parse(content)
     );
+    const briefing = await getBriefing(deduplicatedNews.date);
+
+    if (!briefing) {
+      throw new Error(
+        `Briefing ${deduplicatedNews.date} not found in database`
+      );
+    }
+    if (briefing.summarizedTime !== undefined) {
+      throw new Error(`Briefing ${deduplicatedNews.date} already summarized`);
+    }
+
+    resetCurrentUsage();
 
     const summarizedNews = await summarize(
       deduplicatedNews.items.map(
@@ -73,6 +85,12 @@ export const handler: EventBridgeHandler<"Object Created", any, void> = async (
         ContentType: "application/json",
       })
     );
+
+    await updateBriefingSummarizedTime({
+      date: deduplicatedNews.date,
+      summarizedTime: new Date(),
+      summarizedUsage: getCurrentUsage(),
+    });
 
     console.log(`Successfully uploaded news data to S3: ${s3Key}`);
   } catch (error) {

@@ -20,6 +20,7 @@ type AdditiveGitHubCommitDetails = {
   owner: string;
   repo: string;
   token: string;
+  force?: boolean;
 };
 
 export async function commitFilesToGitHub(args: AdditiveGitHubCommitDetails) {
@@ -47,7 +48,7 @@ export async function commitFilesToGitHub(args: AdditiveGitHubCommitDetails) {
   const baseTreeSha = commitResp.data.tree.sha;
 
   // Check if the tip commit already has the same message
-  if (commitResp.data.message === commitMessage) {
+  if (commitResp.data.message === commitMessage && !args.force) {
     throw new Error(
       `Commit with message "${commitMessage}" already exists at tip of branch "${branch}". Aborting to prevent duplicate commit.`
     );

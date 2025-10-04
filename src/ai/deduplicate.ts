@@ -1,13 +1,12 @@
-import { generateObject, GenerateObjectResult } from "ai";
 import {
   SimplifiedNewsItem,
   SimplifiedNewsResponse,
   SimplifiedNewsResponseSchema,
 } from "../types";
-import { getLLMProvider } from "./getLLMProvider";
+import { callLLM } from "./getLLMProvider";
 import fs from "node:fs/promises";
 
-const MAX_OUTPUT_TOKENS = 60000;
+const MAX_OUTPUT_TOKENS = 32768; // this is the max tokens for the gpt-4.1 model.
 const BATCH_SIZE = 150;
 const MAX_PARALLEL_REQUESTS = 5;
 const BATCH_WAIT_TIME_MS = 2000; // 2 seconds
@@ -56,17 +55,13 @@ async function deduplicateBatch(
   roundNumber: number,
   batchNumber: number
 ): Promise<{ items: SimplifiedNewsItem[]; usage: UsageStats }> {
-  const model = getLLMProvider();
   await writeToFile(newsItems, "input", roundNumber, batchNumber);
 
-  const result: GenerateObjectResult<SimplifiedNewsResponse> = await (
-    generateObject as any
-  )({
-    model,
+  const result = await callLLM<SimplifiedNewsResponse>({
     system: systemPromptDeduplicate,
     prompt: JSON.stringify(newsItems, null, 2),
     schema: SimplifiedNewsResponseSchema,
-    maxTokens: MAX_OUTPUT_TOKENS,
+    maxOutputTokens: MAX_OUTPUT_TOKENS,
   });
 
   const batchName = `${String(roundNumber).padStart(2, "0")}-${String(

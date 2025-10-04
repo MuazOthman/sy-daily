@@ -9,6 +9,7 @@ import { prioritizeAndFormat } from "../prioritizeAndFormat";
 import { getMostFrequentLabels } from "../mostFrequentLabel";
 import { TelegramUser } from "../telegram/user";
 import { addDateToBanner } from "../banner/newsBanner";
+import { getBriefing, updateBriefingPost } from "../db/BriefingEntity";
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION || "us-east-1",
@@ -31,14 +32,6 @@ if (
 }
 
 const CONTENT_LANGUAGE = process.env.CONTENT_LANGUAGE as ContentLanguage;
-
-let CHANNEL_ID_NUMBER: number;
-
-if (isNaN(parseInt(CHANNEL_ID))) {
-  throw new Error("TELEGRAM_CHANNEL_ID is not a valid number");
-} else {
-  CHANNEL_ID_NUMBER = parseInt(CHANNEL_ID);
-}
 
 type Payload = {
   date: string;
@@ -83,6 +76,17 @@ export const handler: EventBridgeHandler<string, Payload, void> = async (
     const newsDataJson = await response.Body.transformToString();
 
     const newsData = ProcessedNewsSchema.parse(JSON.parse(newsDataJson));
+
+    const briefing = await getBriefing(newsData.date);
+
+    if (!briefing) {
+      throw new Error(`Briefing ${newsData.date} not found in database`);
+    }
+    if (briefing.posts?.["telegram"]?.[CONTENT_LANGUAGE] !== undefined) {
+      throw new Error(
+        `Briefing ${newsData.date} already posted to Telegram in ${CONTENT_LANGUAGE}`
+      );
+    }
 
     console.log(`Processing news data for date: ${newsData.date}`);
 
@@ -140,12 +144,20 @@ export const handler: EventBridgeHandler<string, Payload, void> = async (
 
     const user = new TelegramUser();
     await user.login();
-    await user.sendPhotoToChannel(CHANNEL_ID_NUMBER, banner, {
+    const result = await user.sendPhotoToChannel(CHANNEL_ID, banner, {
       caption: formattedNews.message,
       parseMode: "html",
       silent: false,
     });
     await user.logout();
+    const postUrl = `https://t.me/${CHANNEL_ID}/${result.id}`;
+
+    await updateBriefingPost({
+      date: newsData.date,
+      formatter: "telegram",
+      language: CONTENT_LANGUAGE,
+      postUrl,
+    });
 
     console.log("Successfully posted summary to Telegram");
   } catch (error) {

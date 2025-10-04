@@ -7,6 +7,9 @@ Globals:
     Runtime: nodejs22.x
     Architectures:
       - arm64
+    Environment:
+      Variables:
+        STATE_TABLE_NAME: !Ref StateTable
 
 Parameters:
   TelegramBotToken:
@@ -57,6 +60,21 @@ Resources:
         EventBridgeConfiguration:
           EventBridgeEnabled: true # Send S3 events to EventBridge
 
+  StateTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+
   # Lambda Function 1: Collect and Summarize (writes JSON to S3)
   CollectFunction:
     Type: AWS::Serverless::Function
@@ -73,9 +91,10 @@ Resources:
             Description: Daily execution of the news collection
             Enabled: true
       Policies:
-        - AWSLambdaBasicExecutionRole
         - S3WritePolicy:
             BucketName: !Ref NewsDataBucket
+        - DynamoDBCrudPolicy:
+            TableName: !Ref StateTable
       Environment:
         Variables:
           NODE_OPTIONS: --enable-source-maps
@@ -97,9 +116,10 @@ Resources:
       Timeout: 900 # Increased timeout for AI processing
       MemorySize: 1024
       Policies:
-        - AWSLambdaBasicExecutionRole
         - S3CrudPolicy:
             BucketName: !Ref NewsDataBucket
+        - DynamoDBCrudPolicy:
+            TableName: !Ref StateTable
       Environment:
         Variables:
           NODE_OPTIONS: --enable-source-maps
@@ -134,9 +154,10 @@ Resources:
       Timeout: 600 # Increased timeout for AI processing
       MemorySize: 512
       Policies:
-        - AWSLambdaBasicExecutionRole
         - S3CrudPolicy:
             BucketName: !Ref NewsDataBucket
+        - DynamoDBCrudPolicy:
+            TableName: !Ref StateTable
       Environment:
         Variables:
           NODE_OPTIONS: --enable-source-maps
@@ -170,20 +191,25 @@ Resources:
       Handler: PublishToWebsite.handler
       Timeout: 60
       MemorySize: 256
+      Layers:
+        - arn:aws:lambda:us-east-1:347599033421:layer:amazon_linux_fonts:1
+        - arn:aws:lambda:us-east-1:347599033421:layer:stix-fonts:1
       Policies:
-        - AWSLambdaBasicExecutionRole
         - S3ReadPolicy:
             BucketName: !Ref NewsDataBucket
+        - DynamoDBCrudPolicy:
+            TableName: !Ref StateTable
       Environment:
         Variables:
           NODE_OPTIONS: --enable-source-maps
           NODE_ENV: production
           IS_LAMBDA: "true"
+          FONTCONFIG_PATH: /opt/etc/fonts
           GITHUB_OWNER: "MuazOthman"
           GITHUB_REPO: "www.syria-daily.com"
           GITHUB_BRANCH: "main"
-          BASE_PATH: "src/data/blog"
           GITHUB_TOKEN: !Ref GithubToken
+          BUCKET_NAME: !Ref NewsDataBucket
       Events:
         FromEventBridge:
           Type: EventBridgeRule
@@ -209,9 +235,10 @@ Resources:
         - arn:aws:lambda:us-east-1:347599033421:layer:amazon_linux_fonts:1
         - arn:aws:lambda:us-east-1:347599033421:layer:stix-fonts:1
       Policies:
-        - AWSLambdaBasicExecutionRole
         - S3ReadPolicy:
             BucketName: !Ref NewsDataBucket
+        - DynamoDBCrudPolicy:
+            TableName: !Ref StateTable
       Environment:
         Variables:
           NODE_OPTIONS: --enable-source-maps
@@ -244,9 +271,10 @@ Resources:
         - arn:aws:lambda:us-east-1:347599033421:layer:amazon_linux_fonts:1
         - arn:aws:lambda:us-east-1:347599033421:layer:stix-fonts:1
       Policies:
-        - AWSLambdaBasicExecutionRole
         - S3ReadPolicy:
             BucketName: !Ref NewsDataBucket
+        - DynamoDBCrudPolicy:
+            TableName: !Ref StateTable
       Environment:
         Variables:
           NODE_OPTIONS: --enable-source-maps

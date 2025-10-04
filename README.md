@@ -11,62 +11,82 @@ A Telegram bot that automatically collects Syrian news from 30+ Telegram channel
 
 - **Multi-channel Collection**: Monitors 30+ configurable Telegram channels from `channels.json`
 - **AI-Powered Processing**: Uses OpenAI or Anthropic models for summarization, translation, and deduplication
-- **4-Stage Modular Pipeline**: Separate Lambda functions for Collection → Summarization → Deduplication → Posting
+- **5-Stage Modular Pipeline**: Separate Lambda functions for Collection → Early Deduplication → Summarization → Website Publishing → Telegram Posting
+- **State Management with DynamoDB**: Tracks pipeline progress and ensures idempotent execution across all stages
+- **Multi-Round Deduplication**: Early deduplication with round-robin redistribution across multiple rounds for maximum efficiency
 - **Parallel AI Processing**: Batch summarization with up to 30 parallel batches of 20 items each
 - **Intelligent Deduplication**: AI-powered merging of duplicate stories while preserving all sources
 - **Dynamic Banner Generation**: Creates SVG-based banner images with category-specific backgrounds for 19+ news types
 - **Dual Language Support**: Posts formatted summaries in both English and Arabic with language-specific banners
-- **EventBridge Orchestration**: S3-triggered Lambda functions for reliable, scalable pipeline execution
+- **Website Integration**: Publishes to GitHub Pages website before posting to Telegram
+- **EventBridge Orchestration**: S3-triggered and custom event-triggered Lambda functions for reliable, scalable pipeline execution
+- **Idempotency Guarantees**: Each stage validates state before processing to prevent duplicate execution
 - **Local Development**: Full local testing environment with caching system
 - **Damascus Timezone**: Accurate 24-hour news collection based on local Syrian time
 - **Lightweight Scraping**: Uses axios and JSDOM for efficient web content extraction
-- **ARM64 Optimization**: Memory-efficient posting functions with integrated font rendering support
+- **ARM64 Optimization**: Memory-efficient functions with integrated font rendering support
 
 ## Architecture
 
-### AWS Lambda (Production) - 4-Stage Modular Pipeline
+### AWS Lambda (Production) - 5-Stage Modular Pipeline
 
 The system uses a modular pipeline where each stage is a separate Lambda function, orchestrated via S3 and EventBridge:
 
 **Stage 1: Collection**
 - **CollectFunction**: Collects raw news posts from Telegram channels
-  - Scheduled execution at 21:10 UTC daily (00:10 Damascus time)
+  - Scheduled execution at 20:01 UTC daily (23:01 Damascus time)
   - Entry point: `src/lambda/Collect.ts`
   - Timeout: 10 minutes for web scraping
-  - Memory: 1GB, x86_64 architecture
+  - Memory: 1GB, ARM64 architecture
+  - State tracking: Initializes briefing in DynamoDB and records collection timestamp
   - Output: `collected-news/{date}.json` → S3
 
-**Stage 2: Summarization**
-- **SummarizeFunction**: AI-powered summarization and translation
+**Stage 2: Early Deduplication**
+- **DeduplicateFunction**: AI-powered early deduplication with multi-round processing
   - Triggered by S3 ObjectCreated event from Stage 1
-  - Entry point: `src/lambda/Summarize.ts`
-  - Timeout: 10 minutes for AI processing
-  - Memory: 1GB, x86_64 architecture
-  - Output: `summarized-news/{date}.json` → S3
-
-**Stage 3: Deduplication**
-- **DeduplicateFunction**: AI-powered deduplication and prioritization
-  - Triggered by S3 ObjectCreated event from Stage 2
   - Entry point: `src/lambda/Deduplicate.ts`
-  - Timeout: 10 minutes for AI processing
-  - Memory: 1GB, x86_64 architecture
+  - Timeout: 15 minutes for multi-round AI processing
+  - Memory: 1GB, ARM64 architecture
+  - State tracking: Validates briefing hasn't been deduplicated, records deduplication timestamp
+  - Uses 150-item batches with round-robin redistribution between rounds
+  - Processes up to 5 parallel requests per batch group
   - Output: `deduplicated-news/{date}.json` → S3
 
-**Stage 4: Posting**
+**Stage 3: Summarization**
+- **SummarizeFunction**: AI-powered summarization and translation
+  - Triggered by S3 ObjectCreated event from Stage 2
+  - Entry point: `src/lambda/Summarize.ts`
+  - Timeout: 10 minutes for AI processing
+  - Memory: 512MB, ARM64 architecture
+  - State tracking: Validates briefing hasn't been summarized, records summarization timestamp
+  - Output: `summarized-news/{date}.json` → S3
+
+**Stage 4: Website Publishing**
+- **PublishToWebsiteFunction**: Publishes news to GitHub Pages website
+  - Triggered by S3 ObjectCreated event from Stage 3
+  - Entry point: `src/lambda/PublishToWebsite.ts`
+  - Timeout: 1 minute for GitHub API operations
+  - Memory: 256MB, ARM64 architecture
+  - State tracking: Validates briefing hasn't been published, records publishing timestamp
+  - Triggers custom EventBridge event (`summaries-published`) after publishing
+
+**Stage 5: Telegram Posting**
 - **PostToTelegramEnglishFunction & PostToTelegramArabicFunction**: Post formatted news with banners
-  - Triggered by S3 ObjectCreated event from Stage 3 (same trigger for both)
+  - Triggered by custom EventBridge event from Stage 4 (same trigger for both)
   - Entry point: `src/lambda/PostToTelegram.ts`
   - Timeout: 1 minute for posting
   - Memory: 512MB, ARM64 architecture with font rendering layers
+  - State tracking: Validates briefing hasn't been posted for this language, records post URL
   - Fetches pre-composed banners from S3 and adds date overlay
 
 ### Local Development
 
-- Direct execution that runs the full 4-stage pipeline locally
+- Direct execution that runs pipeline stages locally for testing
 - Entry point: `src/local/index.ts`
 - Tests both English and Arabic output in a single run
 - Uses dotenv for environment variables
-- Local caching system via `cache/cachedData.json` to avoid re-fetching and re-processing during development
+- Local caching system via `cache/` directory to avoid re-fetching and re-processing during development
+- Local pipeline: Collect → Deduplicate → Summarize → Format → (Optionally) Post
 
 ## Quick Start
 
@@ -187,6 +207,13 @@ npm run banners:compose    # Generate banner compositions
 npm run banners:update     # Update all composed banner variants
 ```
 
+### Deployment & Testing Scripts
+
+```bash
+./scripts/simulate-daily-trigger.sh  # Manually trigger CollectFunction
+./scripts/pull-remote-files.sh       # Download S3 bucket contents for debugging
+```
+
 ## Deployment
 
 ### Prerequisites
@@ -230,11 +257,12 @@ npm run sam:dev                      # Full dev workflow
 
 ```
 src/
-├── lambda/                         # Lambda entry points (4-stage pipeline)
+├── lambda/                         # Lambda entry points (5-stage pipeline)
 │   ├── Collect.ts                  # Stage 1: Collection handler
-│   ├── Summarize.ts                # Stage 2: Summarization handler
-│   ├── Deduplicate.ts              # Stage 3: Deduplication handler
-│   └── PostToTelegram.ts           # Stage 4: Posting handler (English/Arabic)
+│   ├── Deduplicate.ts              # Stage 2: Early deduplication handler
+│   ├── Summarize.ts                # Stage 3: Summarization handler
+│   ├── PublishToWebsite.ts         # Stage 4: Website publishing handler
+│   └── PostToTelegram.ts           # Stage 5: Posting handler (English/Arabic)
 ├── local/
 │   └── index.ts                    # Local development entry point (full pipeline)
 ├── news-collection/
@@ -245,10 +273,15 @@ src/
 │   └── telegram/
 │       └── getPostsInLast24Hours.ts # Multi-channel Telegram API integration
 ├── ai/
+│   ├── deduplicate.ts              # Multi-round AI deduplication with round-robin redistribution
 │   ├── summarize.ts                # Batch AI summarization (parallel processing)
-│   ├── deduplicate.ts              # AI-powered deduplication and merging
 │   ├── getLLMProvider.ts           # AI provider abstraction (OpenAI/Anthropic)
 │   └── customTerms.ts              # Custom terminology handling
+├── db/
+│   ├── Table.ts                    # DynamoDB table configuration
+│   └── BriefingEntity.ts           # Briefing entity schema and state management operations
+├── publish/
+│   └── publishToGitHub.ts          # GitHub API integration for website publishing
 ├── banner/
 │   ├── newsBanner.ts               # SVG-based banner generation with date overlay
 │   ├── composeBanners.ts           # Banner composition utility
@@ -283,51 +316,73 @@ composedBanners/                    # Pre-composed banners (uploaded to S3)
 └── arabic/                         # Pre-composed Arabic banners
 
 channels.json                       # Channel configuration (30+ sources)
-template.yml                        # AWS SAM template (4 Lambda functions)
+template.yml                        # AWS SAM template (6 Lambda functions)
 esbuild.config.ts                   # Build configuration for Lambda bundling
 vitest.config.ts                    # Test configuration
 events/                             # SAM local event files
 ├── s3-event.json                   # S3 event for testing Lambda functions
 └── schedule-event.json             # Scheduled event for testing collection
+scripts/                            # Deployment and testing utilities
+├── simulate-daily-trigger.sh       # Manually trigger CollectFunction
+└── pull-remote-files.sh            # Download S3 bucket contents for debugging
 deploy.sh                           # Deployment script
 updateComposedBanners.sh            # Banner update utility
 ```
 
 ## How It Works
 
-### 4-Stage Pipeline Flow (Production)
+### 5-Stage Pipeline Flow (Production)
 
-**Stage 1: CollectFunction** (Scheduled at 21:10 UTC daily)
-1. **Collection**: Uses Telegram API to fetch posts from 30+ configured channels in the last 24 hours (Damascus time)
-2. **Processing**: Extracts article content from linked URLs using axios and JSDOM
-3. **Storage**: Uploads raw collected posts to S3 at `collected-news/{date}.json`
+**Stage 1: CollectFunction** (Scheduled at 20:01 UTC daily)
+1. **State Initialization**: Creates briefing record in DynamoDB
+2. **Collection**: Uses Telegram API to fetch posts from 30+ configured channels in the last 24 hours (Damascus time)
+3. **Processing**: Extracts article content from linked URLs using axios and JSDOM
+4. **Storage**: Uploads raw collected posts to S3 at `collected-news/{date}.json`
+5. **State Update**: Records collection completion timestamp in DynamoDB
 
-**Stage 2: SummarizeFunction** (Triggered by S3 ObjectCreated event)
-4. **Retrieval**: Downloads raw collected posts from S3
-5. **Batch Processing**: Splits posts into batches of 20 items each
-6. **Parallel Summarization**: Processes up to 30 batches in parallel using AI
-7. **Translation**: Creates English summaries and translations from Arabic content
-8. **Storage**: Uploads summarized data to S3 at `summarized-news/{date}.json`
+**Stage 2: DeduplicateFunction** (Triggered by S3 ObjectCreated event)
+6. **State Validation**: Checks briefing exists and hasn't been deduplicated
+7. **Retrieval**: Downloads raw collected posts from S3
+8. **Multi-Round Deduplication**: Implements AI-powered deduplication with round-robin redistribution
+   - Splits items into batches of 150 items
+   - Processes up to 5 batches in parallel per round
+   - Redistributes items using round-robin between rounds to maximize deduplication opportunities
+   - Continues until 98% ratio threshold is reached or max rounds completed
+9. **Storage**: Uploads deduplicated posts to S3 at `deduplicated-news/{date}.json`
+10. **State Update**: Records deduplication completion timestamp in DynamoDB
 
-**Stage 3: DeduplicateFunction** (Triggered by S3 ObjectCreated event)
-9. **Retrieval**: Downloads summarized news from S3
-10. **Initial Prioritization**: Filters and prioritizes top 100 items based on importance scores
-11. **AI Deduplication**: Merges duplicate stories while preserving all sources and labels
-12. **Storage**: Uploads deduplicated data to S3 at `deduplicated-news/{date}.json`
+**Stage 3: SummarizeFunction** (Triggered by S3 ObjectCreated event)
+11. **State Validation**: Checks briefing exists and hasn't been summarized
+12. **Retrieval**: Downloads deduplicated posts from S3
+13. **Batch Processing**: Splits posts into batches of 20 items each
+14. **Parallel Summarization**: Processes up to 30 batches in parallel using AI
+15. **Translation**: Creates English summaries and translations from Arabic content
+16. **Storage**: Uploads summarized data to S3 at `summarized-news/{date}.json`
+17. **State Update**: Records summarization completion timestamp in DynamoDB
 
-**Stage 4: PostToTelegramFunction** (Both English and Arabic triggered by S3 ObjectCreated event)
-13. **Retrieval**: Downloads deduplicated news from S3
-14. **Final Prioritization**: Analyzes and prioritizes news items using weighted label system
-15. **Formatting**: Formats news items into structured Telegram messages (language-specific with HTML formatting)
-16. **Banner Selection**: Determines most frequent news category and fetches pre-composed banner from S3
-17. **Date Overlay**: Adds date overlay to banner image
-18. **Publishing**: Posts banner image with formatted summary to respective target Telegram channels via TelegramUser client
+**Stage 4: PublishToWebsiteFunction** (Triggered by S3 ObjectCreated event)
+18. **State Validation**: Checks briefing exists and hasn't been published to website
+19. **Retrieval**: Downloads summarized news from S3
+20. **GitHub Publishing**: Publishes content to GitHub repository for website deployment
+21. **State Update**: Records website publishing completion timestamp in DynamoDB
+22. **Event Notification**: Triggers custom EventBridge event (`summaries-published`) to notify Telegram functions
+
+**Stage 5: PostToTelegramFunction** (Both English and Arabic triggered by custom EventBridge event)
+23. **State Validation**: Checks briefing exists and hasn't been posted for this language
+24. **Retrieval**: Downloads summarized news from S3
+25. **Final Prioritization**: Analyzes and prioritizes news items using weighted label system
+26. **Formatting**: Formats news items into structured Telegram messages (language-specific with HTML formatting)
+27. **Banner Selection**: Determines most frequent news category and fetches pre-composed banner from S3
+28. **Date Overlay**: Adds date overlay to banner image
+29. **Publishing**: Posts banner image with formatted summary to respective target Telegram channels via TelegramUser client
+30. **State Update**: Records Telegram post URL in DynamoDB
 
 ### Local Development Flow
 
-- Executes all 4 stages sequentially in a single run via `src/local/index.ts`
+- Executes pipeline stages locally via `src/local/index.ts`
+- Local pipeline: Collect → Deduplicate → Summarize → Format → (Optionally) Post
 - Tests both English and Arabic output
-- Uses local caching to avoid re-fetching and re-processing during development
+- Uses local caching system to avoid re-fetching and re-processing during development
 
 ## License
 
