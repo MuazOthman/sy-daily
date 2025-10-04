@@ -6,6 +6,7 @@ export const KnownStrings = [
   "ProcessedThisManyPostsFromThisManySources",
   "ShowMoreItems",
   "Author",
+  "TelegramFooter",
 ] as const;
 
 export const Strings: Record<
@@ -19,6 +20,8 @@ export const Strings: Record<
       "بعد معالجة {numberOfPosts} منشوراً من {numberOfSources} مصدراً",
     ShowMoreItems: "عرض المزيد من الأخبار",
     Author: "فريق الملخص اليومي لأخبار سورية",
+    TelegramFooter:
+      "لمزيد من الأخبار وروابط المصادر يمكنكم زيارة الملخص على هذا الرابط: https://www.syria-daily.com/ar/posts/{date}",
   },
   english: {
     Source: "Source",
@@ -27,5 +30,7 @@ export const Strings: Record<
       "Processed {numberOfPosts} posts from {numberOfSources} sources",
     ShowMoreItems: "Show more items",
     Author: "Syria Daily Briefing Team",
+    TelegramFooter:
+      "For more news and links to sources, you can visit the briefing at this link: https://www.syria-daily.com/posts/{date}",
   },
 };

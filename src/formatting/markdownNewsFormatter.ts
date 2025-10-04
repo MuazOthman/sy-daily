@@ -31,7 +31,7 @@ const labelEmojis = {
   food: "🍔",
 };
 
-const MAX_LABELS_TO_DISPLAY = 3;
+const MAX_LABELS_TO_DISPLAY = 1;
 
 function getOgImage(language: ContentLanguage, date: string) {
   return `../../../assets/images/${date}-${
@@ -69,7 +69,7 @@ function formatNewsItemForMarkdown(
     .map(
       (source, idx) =>
         `<a href="${source}" target="_blank">[${Strings[language].Source}${
-          item.sources.length > 1 ? idx + 1 : ""
+          item.sources.length > 1 ? ` ${idx + 1}` : ""
         }]</a>`
     )
     .join(", ");

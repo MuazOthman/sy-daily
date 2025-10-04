@@ -7,5 +7,9 @@
     "rbct",
     "tgme"
   ],
-  "cSpell.ignorePaths": ["tests/article-samples/**", "channels.json"]
+  "cSpell.ignorePaths": [
+    "tests/article-samples/**",
+    "channels.json",
+    "src/formatting/strings.ts"
+  ]
 }

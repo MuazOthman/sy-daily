@@ -30,7 +30,7 @@ const labelEmojis = {
   food: "🍔",
 };
 
-const MAX_LABELS_TO_DISPLAY = 3;
+const MAX_LABELS_TO_DISPLAY = 1;
 
 function formatNewsItemForTelegram(
   language: ContentLanguage,
@@ -43,14 +43,7 @@ function formatNewsItemForTelegram(
 
   return `${labelText} ${
     language === "arabic" ? item.summaryArabic : item.summaryEnglish
-  } - ${item.sources
-    .map(
-      (source, idx) =>
-        `<a href="${source}">${Strings[language].Source}${
-          item.sources.length > 1 ? idx + 1 : ""
-        }</a>`
-    )
-    .join(" ")}`;
+  }`;
 }
 
 export function telegramNewsFormatter({
@@ -79,13 +72,16 @@ export function telegramNewsFormatter({
     numberOfPosts.toString()
   ).replace("{numberOfSources}", numberOfSources.toString())}
 
-${formattedNewsItems}`;
+${formattedNewsItems}\n\n${Strings[language].TelegramFooter.replace(
+    "{date}",
+    date
+  )}`;
 
   // ensure the message is not too long or else sending it to telegram will fail
 
   const { length } = measureTelegramRenderedHtml(msgHtml);
 
-  if (length > 4096) {
+  if (length > 2400) {
     console.log(
       `🔍 Message too long (${msgHtml.length} characters), skipping ${skipItems} items`
     );
