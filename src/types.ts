@@ -85,6 +85,35 @@ export const NewsResponseSchema = z.object({
 
 export type NewsResponse = z.infer<typeof NewsResponseSchema>;
 
+export const SimplifiedNewsItemSchema = z.object({
+  text: z.string().describe("The text of the news item in Arabic"),
+  sources: z
+    .array(z.string())
+    .min(1)
+    .describe("The URLs of the sources of the news item"),
+});
+
+export type SimplifiedNewsItem = z.infer<typeof SimplifiedNewsItemSchema>;
+
+export const SimplifiedNewsResponseSchema = z.object({
+  items: z.array(SimplifiedNewsItemSchema),
+});
+
+export type SimplifiedNewsResponse = z.infer<
+  typeof SimplifiedNewsResponseSchema
+>;
+
+export const SimplifiedNewsWithMetadataSchema = z.object({
+  items: z.array(SimplifiedNewsItemSchema),
+  numberOfPosts: z.number(),
+  numberOfSources: z.number(),
+  date: z.string(),
+});
+
+export type SimplifiedNewsWithMetadata = z.infer<
+  typeof SimplifiedNewsWithMetadataSchema
+>;
+
 export const ProcessedNewsSchema = z.object({
   newsResponse: NewsResponseSchema,
   numberOfPosts: z.number(),

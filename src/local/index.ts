@@ -1,18 +1,19 @@
 import { config } from "dotenv";
 config();
 
-import { getEpochSecondsMostRecentMidnightInDamascus } from "../utils/dateUtils";
-import { ProcessedNews, ContentLanguage } from "../types";
-import fs from "fs";
+import { getEpochSecondsMostRecent_11_PM_InDamascus } from "../utils/dateUtils";
+import { ProcessedNews, ContentLanguage, CollectedNewsData } from "../types";
+import fs, { existsSync, mkdirSync, writeFileSync } from "fs";
 import path from "path";
 import { prioritizeAndFormat } from "../prioritizeAndFormat";
 import { collect } from "../news-collection/collect";
 import { generateNewsBanner } from "../banner/newsBanner";
 import { TelegramUser } from "../telegram/user";
-import { getMostFrequentLabel } from "../mostFrequentLabel";
+import { getMostFrequentLabels } from "../mostFrequentLabel";
 import { summarize } from "../ai/summarize";
 import { deduplicate } from "../ai/deduplicate";
 import { prioritizeNews } from "../prioritizeNews";
+import { newsResponseToMarkdown } from "../formatting/markdownNewsFormatter";
 
 const CACHE_COLLECTED_NEWS_FILE = path.join(
   process.cwd(),
@@ -29,6 +30,12 @@ const CACHE_DEDUPLICATED_NEWS_FILE = path.join(
   "cache",
   "deduplicatedNews.json"
 );
+
+const DEDUPE_OUTPUT_FOLDER = path.join(process.cwd(), "cache", "deduplicate");
+process.env.DEDUPE_OUTPUT_FOLDER = DEDUPE_OUTPUT_FOLDER;
+if (!existsSync(DEDUPE_OUTPUT_FOLDER)) {
+  mkdirSync(DEDUPE_OUTPUT_FOLDER, { recursive: true });
+}
 
 async function getCollectedNews(date: string) {
   try {
@@ -51,16 +58,40 @@ async function getCollectedNews(date: string) {
   }
 }
 
+async function getDeduplicatedNews(date: string) {
+  try {
+    if (fs.existsSync(CACHE_DEDUPLICATED_NEWS_FILE)) {
+      return JSON.parse(fs.readFileSync(CACHE_DEDUPLICATED_NEWS_FILE, "utf8"));
+    }
+  } catch (error) {
+    console.error("Failed to deduplicate news:");
+    throw error;
+  }
+  const collectedNews = await getCollectedNews(date);
+  const deduplicatedNews = (await deduplicate(collectedNews.newsItems)).map(
+    (item) => `${item.text}\n${item.sources.join("\n")}`
+  );
+  const result: CollectedNewsData = {
+    ...collectedNews,
+    newsItems: deduplicatedNews,
+  };
+  fs.writeFileSync(
+    CACHE_DEDUPLICATED_NEWS_FILE,
+    JSON.stringify(result, null, 2)
+  );
+  return result;
+}
+
 async function getSummarizedNews(date: string) {
   try {
     if (fs.existsSync(CACHE_SUMMARIZED_NEWS_FILE)) {
       return JSON.parse(fs.readFileSync(CACHE_SUMMARIZED_NEWS_FILE, "utf8"));
     }
-    const collectedNews = await getCollectedNews(date);
-    const summarizedNews = await summarize(collectedNews.newsItems);
+    const deduplicatedNews: CollectedNewsData = await getDeduplicatedNews(date);
+    const summarizedNews = await summarize(deduplicatedNews.newsItems);
     const result: ProcessedNews = {
-      numberOfPosts: collectedNews.numberOfPosts,
-      numberOfSources: collectedNews.numberOfSources,
+      numberOfPosts: deduplicatedNews.numberOfPosts,
+      numberOfSources: deduplicatedNews.numberOfSources,
       date,
       newsResponse: summarizedNews,
     };
@@ -75,47 +106,16 @@ async function getSummarizedNews(date: string) {
   }
 }
 
-async function getDeduplicatedNews(date: string) {
-  try {
-    if (fs.existsSync(CACHE_DEDUPLICATED_NEWS_FILE)) {
-      return JSON.parse(fs.readFileSync(CACHE_DEDUPLICATED_NEWS_FILE, "utf8"));
-    }
-  } catch (error) {
-    console.error("Failed to deduplicate news:");
-    throw error;
-  }
-  const summarizedNews = await getSummarizedNews(date);
-  const prioritizedNews = prioritizeNews(summarizedNews.newsResponse.newsItems)
-    .slice(0, 100)
-    .map((item) => {
-      const { importanceScore, ...rest } = item;
-      return rest;
-    });
-  const deduplicatedNews = await deduplicate({
-    ...summarizedNews.newsResponse,
-    newsItems: prioritizedNews,
-  });
-  const result: ProcessedNews = {
-    ...summarizedNews,
-    newsResponse: deduplicatedNews,
-  };
-  fs.writeFileSync(
-    CACHE_DEDUPLICATED_NEWS_FILE,
-    JSON.stringify(result, null, 2)
-  );
-  return result;
-}
-
 export async function executeForLast24Hours(
   language: ContentLanguage,
   channelId: number,
   simulate = false
 ) {
-  const date = new Date(getEpochSecondsMostRecentMidnightInDamascus() * 1000)
+  const date = new Date(getEpochSecondsMostRecent_11_PM_InDamascus() * 1000)
     .toISOString()
     .split("T")[0];
 
-  const news = await getDeduplicatedNews(date);
+  const news = await getSummarizedNews(date);
 
   const formattedNews = prioritizeAndFormat(news, language, "telegram");
 
@@ -124,7 +124,7 @@ export async function executeForLast24Hours(
     return;
   }
 
-  const mostFrequentLabel = getMostFrequentLabel(formattedNews.newsItems);
+  const mostFrequentLabel = getMostFrequentLabels(formattedNews.newsItems)[0];
 
   console.log(`🔍 Most frequent label: ${mostFrequentLabel}`);
 
@@ -135,6 +135,24 @@ export async function executeForLast24Hours(
     return;
   }
 
+  // Prioritize, the news
+  const prioritizedNews = prioritizeNews(news.newsResponse.newsItems);
+
+  const markdownNews = newsResponseToMarkdown({
+    language,
+    newsResponse: {
+      newsItems: prioritizedNews,
+    },
+    date,
+    numberOfPosts: news.numberOfPosts,
+    numberOfSources: news.numberOfSources,
+  });
+
+  // write the markdown to a file named after the proper language inside the cache folder
+  writeFileSync(
+    path.join(process.cwd(), "cache", `${date}.${language}.md`),
+    markdownNews
+  );
   const banner = await generateNewsBanner(mostFrequentLabel, date, language);
 
   const user = new TelegramUser();
@@ -145,10 +163,6 @@ export async function executeForLast24Hours(
     silent: false,
   });
   await user.logout();
-
-  // const bot = new TelegramBot(channelId);
-
-  // await bot.postPhoto(banner, formattedNews.message);
 }
 
 const simulate = false;

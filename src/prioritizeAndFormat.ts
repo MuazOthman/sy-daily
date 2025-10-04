@@ -7,7 +7,7 @@ import {
 } from "./types";
 import { Formatters } from "./formatting";
 
-const MAX_NEWS_ITEMS = 12;
+const MAX_NEWS_ITEMS = 10;
 
 export function prioritizeAndFormat(
   newsData: ProcessedNews,
@@ -28,9 +28,7 @@ export function prioritizeAndFormat(
   // console.log(`🔍 Prioritized ${prioritizedNews.length} news items`);
   // console.log(JSON.stringify(prioritizedNews));
 
-  const filteredNews = prioritizedNews
-    .slice(0, MAX_NEWS_ITEMS)
-    .filter((item) => item.importanceScore > 4000);
+  const filteredNews = prioritizedNews.slice(0, MAX_NEWS_ITEMS);
 
   const formattedNews = Formatters[formatter]({
     language,

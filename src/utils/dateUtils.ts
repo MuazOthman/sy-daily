@@ -1,4 +1,4 @@
-export function getEpochSecondsMostRecentMidnightInDamascus(
+export function getEpochSecondsMostRecent_11_PM_InDamascus(
   specifiedDate?: Date
 ): number {
   // Get current time in UTC
@@ -7,9 +7,9 @@ export function getEpochSecondsMostRecentMidnightInDamascus(
   // Create date in UTC
   const dateInUTC = new Date(now);
 
-  // For UTC+3, when it's 00:00 in UTC+3, it's 21:00 the previous day in UTC
-  // So we need to set the UTC time to 21:00 of the current day
-  dateInUTC.setUTCHours(21, 0, 0, 0);
+  // For UTC+3, when it's 23:00 in UTC+3, it's 20:00 the previous day in UTC
+  // So we need to set the UTC time to 20:00 of the current day
+  dateInUTC.setUTCHours(20, 0, 0, 0);
 
   // If this time is in the future, we need to go back 24 hours
   if (dateInUTC > now) {

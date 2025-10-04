@@ -5,8 +5,9 @@ import {
   GetObjectCommand,
 } from "@aws-sdk/client-s3";
 import { deduplicate } from "../ai/deduplicate";
-import { ProcessedNewsSchema } from "../types";
-import { prioritizeNews } from "../prioritizeNews";
+import { CollectedNewsDataSchema, SimplifiedNewsWithMetadata } from "../types";
+import { getBriefing, updateBriefingDeduplicated } from "../db/BriefingEntity";
+import { getCurrentUsage, resetCurrentUsage } from "../ai/getLLMProvider";
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION || "us-east-1",
@@ -44,27 +45,27 @@ export const handler: EventBridgeHandler<"Object Created", any, void> = async (
       throw new Error("No data received from S3");
     }
     const content = await response.Body.transformToString();
-    const summarizedNews = ProcessedNewsSchema.parse(JSON.parse(content));
+    const collectedNews = CollectedNewsDataSchema.parse(JSON.parse(content));
 
-    const prioritizedNews = prioritizeNews(
-      summarizedNews.newsResponse.newsItems
-    )
-      .slice(0, 100)
-      .map((item) => {
-        const { importanceScore, ...rest } = item;
-        return rest;
-      });
+    const briefing = await getBriefing(collectedNews.date);
+    if (!briefing) {
+      throw new Error(`Briefing ${collectedNews.date} not found in database`);
+    }
+    if (briefing.deduplicatedTime !== undefined) {
+      throw new Error(`Briefing ${collectedNews.date} already deduplicated`);
+    }
 
-    const deduplicatedNews = await deduplicate({
-      ...summarizedNews.newsResponse,
-      newsItems: prioritizedNews,
-    });
-    const processedNews = {
-      ...summarizedNews,
-      newsResponse: deduplicatedNews,
+    resetCurrentUsage();
+
+    const deduplicatedNews = await deduplicate(collectedNews.newsItems);
+    const processedNews: SimplifiedNewsWithMetadata = {
+      items: deduplicatedNews,
+      numberOfPosts: collectedNews.numberOfPosts,
+      numberOfSources: collectedNews.numberOfSources,
+      date: collectedNews.date,
     };
     // Upload to S3 with date as key
-    const s3Key = key.replace("summarized-news", "deduplicated-news");
+    const s3Key = key.replace("collected-news", "deduplicated-news");
 
     await s3Client.send(
       new PutObjectCommand({
@@ -74,6 +75,12 @@ export const handler: EventBridgeHandler<"Object Created", any, void> = async (
         ContentType: "application/json",
       })
     );
+
+    await updateBriefingDeduplicated({
+      date: collectedNews.date,
+      deduplicatedTime: new Date(),
+      deduplicatedUsage: getCurrentUsage(),
+    });
 
     console.log(`Successfully uploaded news data to S3: ${s3Key}`);
   } catch (error) {

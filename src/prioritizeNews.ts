@@ -42,7 +42,7 @@ export function prioritizeNews(
     return {
       ...item,
       importanceScore:
-        getWeightForLabels(item.labels) + item.sources.length * 20,
+        getWeightForLabels(item.labels) + item.sources.length * 40,
     };
   });
   const sortedNewsItems = weightedNewsItems.sort(

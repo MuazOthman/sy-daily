@@ -1,10 +1,6 @@
 import { extractSANAArticleContent } from "./extractSANAArticleContent";
 
-export async function processTelegramPost(
-  message: string,
-  telegramId: number,
-  channelUsername: string
-): Promise<string> {
+export async function processTelegramPost(message: string): Promise<string> {
   const articleUrl = message.match(
     /(?:https?:\/\/(?:www\.)?)?sana\.sy\/.*(?:\n|$)/gi
   );
@@ -24,5 +20,5 @@ export async function processTelegramPost(
   result = result.replace(/#[^\s]+/g, "");
   // remove empty lines
   result = result.replace(/\n\s*\n/g, "\n");
-  return `${result}\n\nhttps://t.me/${channelUsername}/${telegramId}`;
+  return result;
 }

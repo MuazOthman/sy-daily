@@ -4,8 +4,12 @@ import { collect } from "../news-collection/collect";
 import { CollectedNewsData } from "../types";
 import {
   formatDateUTCPlus3,
-  getEpochSecondsMostRecentMidnightInDamascus,
+  getEpochSecondsMostRecent_11_PM_InDamascus,
 } from "../utils/dateUtils";
+import {
+  initializeBriefing,
+  updateBriefingCollectedTime,
+} from "../db/BriefingEntity";
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION || "us-east-1",
@@ -19,10 +23,12 @@ export const handler: ScheduledHandler = async (event) => {
     const date = event.time ? new Date(event.time) : new Date();
     // render the date portion of the date to YYYY-MM-DD in Damascus timezone
     const lastMidnightInDamascus =
-      getEpochSecondsMostRecentMidnightInDamascus(date) * 1000;
+      getEpochSecondsMostRecent_11_PM_InDamascus(date) * 1000;
     const damascusDate = formatDateUTCPlus3(
       new Date(lastMidnightInDamascus - ONE_MINUTE_MILLISECONDS) // 1 minute before midnight, this is to get the previous day's date
     );
+
+    await initializeBriefing({ date: damascusDate });
 
     console.log("Starting news collection for:", date);
 
@@ -42,6 +48,11 @@ export const handler: ScheduledHandler = async (event) => {
         ContentType: "application/json",
       })
     );
+
+    await updateBriefingCollectedTime({
+      date: damascusDate,
+      collectedTime: new Date(),
+    });
 
     console.log(`Successfully uploaded news data to S3: ${s3Key}`);
   } catch (error) {

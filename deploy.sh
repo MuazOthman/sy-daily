@@ -16,7 +16,8 @@ docker run --rm -v "$(pwd)":/host -w /tmp node:22-slim sh -c '
   npm init -y && 
   npm install --include=optional sharp@0.34.3 && 
   cp -r node_modules /host/.aws-sam/build/PostToTelegramArabicFunction/ &&
-  cp -r node_modules /host/.aws-sam/build/PostToTelegramEnglishFunction/
+  cp -r node_modules /host/.aws-sam/build/PostToTelegramEnglishFunction/ &&
+  cp -r node_modules /host/.aws-sam/build/PublishToWebsiteFunction/
 '
 
 # Copy sharp binaries to Lambda function builds
@@ -35,4 +36,5 @@ sam deploy --no-fail-on-empty-changeset \
   "ParameterKey=SessionString,ParameterValue=${SESSION_STRING}" \
   "ParameterKey=OpenaiApiKey,ParameterValue=${OPENAI_API_KEY}" \
   "ParameterKey=TelegramChannelIdEnglish,ParameterValue=${TELEGRAM_CHANNEL_ID_ENGLISH}" \
-  "ParameterKey=TelegramChannelIdArabic,ParameterValue=${TELEGRAM_CHANNEL_ID_ARABIC}"
+  "ParameterKey=TelegramChannelIdArabic,ParameterValue=${TELEGRAM_CHANNEL_ID_ARABIC}" \
+  "ParameterKey=GithubToken,ParameterValue=${GITHUB_TOKEN}"

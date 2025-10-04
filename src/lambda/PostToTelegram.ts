@@ -6,9 +6,10 @@ import {
   ContentLanguages,
 } from "../types";
 import { prioritizeAndFormat } from "../prioritizeAndFormat";
-import { getMostFrequentLabel } from "../mostFrequentLabel";
+import { getMostFrequentLabels } from "../mostFrequentLabel";
 import { TelegramUser } from "../telegram/user";
 import { addDateToBanner } from "../banner/newsBanner";
+import { getBriefing, updateBriefingPost } from "../db/BriefingEntity";
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION || "us-east-1",
@@ -32,24 +33,27 @@ if (
 
 const CONTENT_LANGUAGE = process.env.CONTENT_LANGUAGE as ContentLanguage;
 
-let CHANNEL_ID_NUMBER: number;
+type Payload = {
+  date: string;
+};
 
-if (isNaN(parseInt(CHANNEL_ID))) {
-  throw new Error("TELEGRAM_CHANNEL_ID is not a valid number");
-} else {
-  CHANNEL_ID_NUMBER = parseInt(CHANNEL_ID);
+if (!process.env.BUCKET_NAME) {
+  throw new Error("BUCKET_NAME is not set");
 }
 
-export const handler: EventBridgeHandler<"Object Created", any, void> = async (
+const BUCKET_NAME = process.env.BUCKET_NAME;
+
+export const handler: EventBridgeHandler<string, Payload, void> = async (
   event
 ) => {
   console.log("Received EventBridge event:", JSON.stringify(event));
 
   try {
-    // Extract S3 details from EventBridge event
-    const detail = event.detail;
-    const bucket = detail.bucket?.name;
-    const key = detail.object?.key;
+    const date = event.detail.date;
+    const bucket = BUCKET_NAME;
+    const key = `summarized-news/${date}.json`;
+
+    console.log(`Processing S3 object: ${bucket}/${key}`);
 
     if (!bucket || !key) {
       throw new Error("Missing bucket or key in EventBridge event detail");
@@ -73,6 +77,22 @@ export const handler: EventBridgeHandler<"Object Created", any, void> = async (
 
     const newsData = ProcessedNewsSchema.parse(JSON.parse(newsDataJson));
 
+    const briefing = await getBriefing(newsData.date);
+
+    if (!briefing) {
+      throw new Error(`Briefing ${newsData.date} not found in database`);
+    }
+    if (
+      briefing.posts?.find(
+        (post) =>
+          post.platform === "telegram" && post.language === CONTENT_LANGUAGE
+      ) !== undefined
+    ) {
+      throw new Error(
+        `Briefing ${newsData.date} already posted to Telegram in ${CONTENT_LANGUAGE}`
+      );
+    }
+
     console.log(`Processing news data for date: ${newsData.date}`);
 
     const formattedNews = prioritizeAndFormat(
@@ -85,7 +105,7 @@ export const handler: EventBridgeHandler<"Object Created", any, void> = async (
       return;
     }
 
-    const mostFrequentLabel = getMostFrequentLabel(formattedNews.newsItems);
+    const mostFrequentLabel = getMostFrequentLabels(formattedNews.newsItems)[0];
     console.log(`🔍 Most frequent label: ${mostFrequentLabel}`);
 
     console.log("Posting summary to Telegram...");
@@ -129,12 +149,23 @@ export const handler: EventBridgeHandler<"Object Created", any, void> = async (
 
     const user = new TelegramUser();
     await user.login();
-    await user.sendPhotoToChannel(CHANNEL_ID_NUMBER, banner, {
+    const result = await user.sendPhotoToChannel(CHANNEL_ID, banner, {
       caption: formattedNews.message,
       parseMode: "html",
       silent: false,
     });
     await user.logout();
+    let postUrl = `https://t.me/${CHANNEL_ID}/${result.id}`;
+    if (CHANNEL_ID.startsWith("-100")) {
+      postUrl = `https://t.me/c/${CHANNEL_ID.slice(4)}/${result.id}`;
+    }
+
+    await updateBriefingPost({
+      date: newsData.date,
+      formatter: "telegram",
+      language: CONTENT_LANGUAGE,
+      postUrl,
+    });
 
     console.log("Successfully posted summary to Telegram");
   } catch (error) {

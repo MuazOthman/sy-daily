@@ -1,4 +1,15 @@
 {
-  "cSpell.words": ["ـــــــــــــــــــــ", "domcontentloaded", "rbct"],
-  "cSpell.ignorePaths": ["tests/article-samples/**", "channels.json"]
+  "cSpell.words": [
+    "ـــــــــــــــــــــ",
+    "Alekhbariah",
+    "domcontentloaded",
+    "FONTCONFIG",
+    "rbct",
+    "tgme"
+  ],
+  "cSpell.ignorePaths": [
+    "tests/article-samples/**",
+    "channels.json",
+    "src/formatting/strings.ts"
+  ]
 }

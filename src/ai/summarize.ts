@@ -1,10 +1,9 @@
-import { generateObject } from "ai";
 import { NewsResponse, NewsResponseSchema } from "../types";
 import { CustomTerms } from "./customTerms";
-import { getLLMProvider } from "./getLLMProvider";
+import { callLLM, getLLMProvider } from "./getLLMProvider";
 import { OpenAIResponsesProviderOptions } from "@ai-sdk/openai";
 
-const MAX_OUTPUT_TOKENS = 20000;
+const MAX_OUTPUT_TOKENS = 32768; // this is the max tokens for the gpt-4.1 model.
 
 const systemPromptSummarize = `You are a news editor fluent in English and Arabic. You'll be given Arabic news snippets from official sources posted in the last 24 hours.
 Your task is to summarize each news item individually in isolation of the other news items. Follow these rules:
@@ -12,9 +11,9 @@ Your task is to summarize each news item individually in isolation of the other 
 1. News will be given as a JSON array of strings.
 2. Include ALL news items in the response, do not filter them out or limit the number of news items.
 3. Do not combine news items, treat each news item as a separate entity.
-4. Use neutral tone in summaries.
+4. Use neutral tone in summaries and be very concise.
 5. When editing the summary in Arabic, use verb-subject-object structure. DON'T USE subject-verb-object structure.
-6. Use the following terms/idioms when translating: ${CustomTerms.map(
+6. Use the following terms/idioms when translating to English only: ${CustomTerms.map(
   (term) => `${term.arabic} -> ${term.english}`
 ).join(", ")}
 7. The number of news items in the response should be exactly the number of news items in the input, do not add or remove any news items.`;
@@ -42,7 +41,7 @@ export async function summarize(
     return NewsResponseSchema.parse(mockResponse);
   }
 
-  const BATCH_SIZE = 20;
+  const BATCH_SIZE = 10;
   const MAX_PARALLEL_BATCHES = 30;
   const batches: string[][] = [];
 
@@ -58,7 +57,7 @@ export async function summarize(
   const allNewsItems: NewsResponse["newsItems"] = [];
   const model = getLLMProvider();
   const overallStart = Date.now();
-  let totalUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+  let totalUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
 
   // Process batches in parallel, up to MAX_PARALLEL_BATCHES at a time
   const processBatch = async (batch: string[], batchIndex: number) => {
@@ -73,12 +72,11 @@ export async function summarize(
       const inputText = JSON.stringify(batch, null, 2);
 
       // LLM call: Summarize, translate, and label
-      const result = await (generateObject as any)({
-        model,
+      const result = await callLLM<NewsResponse>({
         system: systemPromptSummarize,
         prompt: inputText,
         schema: NewsResponseSchema,
-        maxTokens: MAX_OUTPUT_TOKENS,
+        maxOutputTokens: MAX_OUTPUT_TOKENS,
         providerOptions: {
           openai: {
             store: true,
@@ -90,8 +88,8 @@ export async function summarize(
 
       // Accumulate usage statistics
       if (usage) {
-        totalUsage.promptTokens += usage.promptTokens || 0;
-        totalUsage.completionTokens += usage.completionTokens || 0;
+        totalUsage.inputTokens += usage.inputTokens || 0;
+        totalUsage.outputTokens += usage.outputTokens || 0;
         totalUsage.totalTokens += usage.totalTokens || 0;
       }
 
