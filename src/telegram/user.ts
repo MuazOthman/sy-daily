@@ -81,6 +81,12 @@ export class TelegramUser {
       silent: silent,
     });
 
+    // assuming that channelUsername is a number, how do to get the message URL?
+    // const messageUrl = `https://t.me/${channelUsername}/${result.id}`;
+    // doesn't work if channelUsername is the id of a private channel
+    // so we need to use the getChat method to get the chat info
+    // fetch the channel info
+
     return result;
   }
 

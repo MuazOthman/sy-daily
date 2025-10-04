@@ -3,12 +3,13 @@ import {
   FormattedItem,
   GetItemCommand,
   item,
+  list,
   map,
   number,
   PutItemCommand,
-  record,
   string,
   UpdateItemCommand,
+  $prepend,
 } from "dynamodb-toolbox";
 import { StateTable } from "./Table";
 import {
@@ -41,9 +42,12 @@ export const BriefingEntity = new Entity({
     summarizedTime: string().optional(),
     summarizedUsage: UsageSchema.optional(),
     publishedToWebsiteTime: string().optional(),
-    posts: record(
-      string().enum(...AvailableFormatters),
-      record(string().enum(...ContentLanguages), string())
+    posts: list(
+      map({
+        platform: string().enum(...AvailableFormatters),
+        language: string().enum(...ContentLanguages),
+        url: string(),
+      })
     ).optional(),
   }),
   computeKey: ({ date }) => ({
@@ -222,27 +226,20 @@ export async function updateBriefingPost({
   if (currentBriefing.publishedToWebsiteTime === undefined) {
     throw new Error(`Briefing ${date} not published to website`);
   }
-  if (
-    currentBriefing.posts?.[formatter]?.[language] !== undefined &&
-    !overwrite
-  ) {
+  const posts = currentBriefing.posts ?? [];
+  const post = posts.find(
+    (post) => post.platform === formatter && post.language === language
+  );
+  if (post !== undefined && !overwrite) {
     throw new Error(
-      `Briefing ${date} already has a post for ${formatter} in ${language}, URL: ${currentBriefing.posts?.[formatter]?.[language]}`
+      `Briefing ${date} already has a post for ${formatter} in ${language}, URL: ${post.url}`
     );
   }
-  const posts: Record<
-    AvailableFormatter,
-    Record<ContentLanguage, string>
-  > = currentBriefing.posts ??
-  (Object.fromEntries(
-    AvailableFormatters.map((f) => [f, {} as Record<ContentLanguage, string>])
-  ) as Record<AvailableFormatter, Record<ContentLanguage, string>>);
-  posts[formatter] = posts[formatter] || {};
-  posts[formatter][language] = postUrl;
+
   await BriefingEntity.build(UpdateItemCommand)
     .item({
       date,
-      posts,
+      posts: $prepend([{ platform: formatter, language, url: postUrl }]),
     })
     .send();
 }

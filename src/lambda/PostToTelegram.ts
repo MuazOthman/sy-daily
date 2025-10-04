@@ -82,7 +82,12 @@ export const handler: EventBridgeHandler<string, Payload, void> = async (
     if (!briefing) {
       throw new Error(`Briefing ${newsData.date} not found in database`);
     }
-    if (briefing.posts?.["telegram"]?.[CONTENT_LANGUAGE] !== undefined) {
+    if (
+      briefing.posts?.find(
+        (post) =>
+          post.platform === "telegram" && post.language === CONTENT_LANGUAGE
+      ) !== undefined
+    ) {
       throw new Error(
         `Briefing ${newsData.date} already posted to Telegram in ${CONTENT_LANGUAGE}`
       );
@@ -150,7 +155,10 @@ export const handler: EventBridgeHandler<string, Payload, void> = async (
       silent: false,
     });
     await user.logout();
-    const postUrl = `https://t.me/${CHANNEL_ID}/${result.id}`;
+    let postUrl = `https://t.me/${CHANNEL_ID}/${result.id}`;
+    if (CHANNEL_ID.startsWith("-100")) {
+      postUrl = `https://t.me/c/${CHANNEL_ID.slice(4)}/${result.id}`;
+    }
 
     await updateBriefingPost({
       date: newsData.date,
