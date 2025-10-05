@@ -99,6 +99,7 @@ The system uses a modular pipeline where each stage is a separate Lambda functio
 - A testing Telegram channel to post the summaries to (you can use the same channel for both languages)
 - A Telegram bot token (you can get it from [@BotFather](https://t.me/BotFather))
 - An AI API key (e.g. [OpenAI](https://openai.com/) or [Anthropic](https://www.anthropic.com/))
+- A GitHub token for publishing to website (optional for local development)
 
 ### Installation
 
@@ -141,6 +142,13 @@ AI_MODEL=openai:gpt-4.1-2025-04-14
 # Telegram Channel Configuration
 TELEGRAM_CHANNEL_ID_ENGLISH=your_english_channel_id
 TELEGRAM_CHANNEL_ID_ARABIC=your_arabic_channel_id
+
+# GitHub Configuration (optional for local development)
+GITHUB_TOKEN=your_github_token
+
+# Deployment Configuration (optional)
+SIMULATE_WEBSITE_PUBLISH=false
+ALERT_EMAIL=your_email@example.com
 ```
 
 1. **Create or identify your Telegram channel IDs**:
@@ -222,6 +230,7 @@ npm run banners:update     # Update all composed banner variants
 - AWS CLI (configured with the appropriate permissions)
 - SAM CLI
 - Docker
+- Email address for DLQ alerts
 
 ### Prepare for Deployment
 
@@ -348,8 +357,9 @@ updateComposedBanners.sh            # Banner update utility
    - Processes up to 5 batches in parallel per round
    - Redistributes items using round-robin between rounds to maximize deduplication opportunities
    - Continues until 98% ratio threshold is reached or max rounds completed
+   - Skips local file writes when running in Lambda environment
 9. **Storage**: Uploads deduplicated posts to S3 at `deduplicated-news/{date}.json`
-10. **State Update**: Records deduplication completion timestamp in DynamoDB
+10. **State Update**: Records deduplication completion timestamp in DynamoDB (with graceful error handling)
 
 **Stage 3: SummarizeFunction** (Triggered by S3 ObjectCreated event)
 11. **State Validation**: Checks briefing exists and hasn't been summarized
@@ -358,13 +368,13 @@ updateComposedBanners.sh            # Banner update utility
 14. **Parallel Summarization**: Processes up to 30 batches in parallel using AI
 15. **Translation**: Creates English summaries and translations from Arabic content
 16. **Storage**: Uploads summarized data to S3 at `summarized-news/{date}.json`
-17. **State Update**: Records summarization completion timestamp in DynamoDB
+17. **State Update**: Records summarization completion timestamp in DynamoDB (with graceful error handling)
 
 **Stage 4: PublishToWebsiteFunction** (Triggered by S3 ObjectCreated event)
 18. **State Validation**: Checks briefing exists and hasn't been published to website
 19. **Retrieval**: Downloads summarized news from S3
-20. **GitHub Publishing**: Publishes content to GitHub repository for website deployment
-21. **State Update**: Records website publishing completion timestamp in DynamoDB
+20. **GitHub Publishing**: Publishes content to GitHub repository for website deployment (or simulates if `SIMULATE_WEBSITE_PUBLISH=true`)
+21. **State Update**: Records website publishing completion timestamp in DynamoDB (with graceful error handling)
 22. **Event Notification**: Triggers custom EventBridge event (`summaries-published`) to notify Telegram functions
 
 **Stage 5: PostToTelegramFunction** (Both English and Arabic triggered by custom EventBridge event)
@@ -375,7 +385,7 @@ updateComposedBanners.sh            # Banner update utility
 27. **Banner Selection**: Determines most frequent news category and fetches pre-composed banner from S3
 28. **Date Overlay**: Adds date overlay to banner image
 29. **Publishing**: Posts banner image with formatted summary to respective target Telegram channels via TelegramUser client
-30. **State Update**: Records Telegram post URL in DynamoDB
+30. **State Update**: Records Telegram post URL in DynamoDB (with graceful error handling)
 
 ### Local Development Flow
 

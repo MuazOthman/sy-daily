@@ -228,6 +228,9 @@ The application requires these environment variables:
 - `AI_MODEL` - AI model specification with provider prefix (e.g., "openai:gpt-4.1-2025-04-14", "anthropic:claude-3-5-sonnet-20241022")
 - `TELEGRAM_CHANNEL_ID_ENGLISH` - Telegram channel ID for English posts
 - `TELEGRAM_CHANNEL_ID_ARABIC` - Telegram channel ID for Arabic posts
+- `GITHUB_TOKEN` - GitHub token for publishing to website
+- `SIMULATE_WEBSITE_PUBLISH` - Whether to simulate website publishing (optional, defaults to "false")
+- `ALERT_EMAIL` - Email address for DLQ alerts (deployment only)
 
 ### Build System
 
@@ -266,17 +269,28 @@ Defined in `template.yml` (SAM template):
   - Single-table design with PK/SK pattern
   - Global environment variable: `STATE_TABLE_NAME`
   - Managed via dynamodb-toolbox library
+- **Error Handling & Monitoring**:
+  - Dead Letter Queues (SQS) for each Lambda function with 14-day message retention
+  - CloudWatch alarms for DLQ messages with SNS email notifications
+  - Graceful error handling in state update operations
+  - Zero retry attempts with 1-hour event age limit for Lambda invocations
 - **Font rendering layers** for ARM64 posting functions (amazon_linux_fonts, stix-fonts)
 - **Custom EventBridge bus** (`GitHubActionsEventBus`) for GitHub Actions integration
 - **Scheduled execution** via CloudWatch Events (20:01 UTC daily = 23:01 Damascus time) for CollectFunction
 - **Multi-provider AI support** with configurable model parameters (OpenAI/Anthropic) via `AI_MODEL` parameter
 - **Parameter-based configuration** with environment variable injection and language-specific configurations
+- **Global Environment Variables** (applied to all functions):
+  - `STATE_TABLE_NAME` - DynamoDB table name
+  - `NODE_OPTIONS=--enable-source-maps` - Source map support for debugging
+  - `NODE_ENV=production` - Production mode
+  - `IS_LAMBDA=true` - Lambda environment flag
 - **Global IAM Policies** (applied to all functions):
   - AWSLambdaBasicExecutionRole - CloudWatch Logs access
   - DynamoDBCrudPolicy - Full access to StateTable
+  - SQSSendMessagePolicy - Write access to respective DLQ
 - **Function-specific IAM Policies**:
   - CollectFunction: S3 write access
   - DeduplicateFunction: S3 read/write access
   - SummarizeFunction: S3 read/write access
-  - PublishToWebsiteFunction: S3 read access
+  - PublishToWebsiteFunction: S3 read access, EventBridge PutEvents to GitHubActionsEventBus
   - PostToTelegram functions: S3 read access
