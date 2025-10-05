@@ -13,6 +13,7 @@ const BATCH_WAIT_TIME_MS = 2000; // 2 seconds
 const ROUND_WAIT_TIME_MS = 4000; // 4 seconds
 const DEDUPLICATION_RATIO_THRESHOLD = 0.98;
 const MIN_ITEMS_PER_ROUND = 30;
+const SHOULD_SKIP_WRITE_TO_FILE = process.env.IS_LAMBDA === "true";
 
 async function writeToFile(
   items: (SimplifiedNewsItem | string)[],
@@ -20,6 +21,9 @@ async function writeToFile(
   roundNumber: number,
   batchNumber?: number
 ) {
+  if (SHOULD_SKIP_WRITE_TO_FILE) {
+    return;
+  }
   const DEDUPE_OUTPUT_FOLDER = process.env.DEDUPE_OUTPUT_FOLDER;
   const batchName = `${String(roundNumber).padStart(2, "0")}-${
     batchNumber ? String(batchNumber).padStart(2, "0") : "--"

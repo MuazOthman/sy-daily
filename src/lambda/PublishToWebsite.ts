@@ -5,6 +5,10 @@ import { prioritizeNews } from "../prioritizeNews";
 import { newsResponseToMarkdown } from "../formatting/markdownNewsFormatter";
 import { commitFilesToGitHub } from "../github";
 import {
+  EventBridgeClient,
+  PutEventsCommand,
+} from "@aws-sdk/client-eventbridge";
+import {
   getBriefing,
   updateBriefingPublishedToWebsiteTime,
 } from "../db/BriefingEntity";
@@ -12,6 +16,10 @@ import { getMostFrequentLabels } from "../mostFrequentLabel";
 import { addDateToBanner } from "../banner/newsBanner";
 
 const s3Client = new S3Client({
+  region: process.env.AWS_REGION || "us-east-1",
+});
+
+const eventBridgeClient = new EventBridgeClient({
   region: process.env.AWS_REGION || "us-east-1",
 });
 
@@ -108,6 +116,31 @@ export const handler: EventBridgeHandler<"Object Created", any, void> = async (
 
     const newsData = ProcessedNewsSchema.parse(JSON.parse(newsDataJson));
 
+    if (process.env.SIMULATE_WEBSITE_PUBLISH === "true") {
+      console.log("Simulating website publish");
+
+      await updateBriefingPublishedToWebsiteTime({
+        date: newsData.date,
+        publishedToWebsiteTime: new Date(),
+      });
+
+      // put event to event bus
+
+      await eventBridgeClient.send(
+        new PutEventsCommand({
+          Entries: [
+            {
+              EventBusName: process.env.BUS_NAME,
+              Source: "gh.actions",
+              DetailType: "summaries-published",
+              Detail: JSON.stringify({ date: newsData.date }),
+            },
+          ],
+        })
+      );
+      return;
+    }
+
     const date = newsData.date;
 
     const briefing = await getBriefing(newsData.date);
@@ -173,10 +206,16 @@ export const handler: EventBridgeHandler<"Object Created", any, void> = async (
     });
     console.log("Result:", JSON.stringify(result, null, 2));
 
-    await updateBriefingPublishedToWebsiteTime({
-      date: newsData.date,
-      publishedToWebsiteTime: new Date(),
-    });
+    try {
+      await updateBriefingPublishedToWebsiteTime({
+        date: newsData.date,
+        publishedToWebsiteTime: new Date(),
+      });
+    } catch (error) {
+      console.error("Error in updating briefing:", error);
+      console.log("Gracefully exiting...");
+      return;
+    }
   } catch (error) {
     console.error("Error in PublishToWebsite function:", error);
     throw error;

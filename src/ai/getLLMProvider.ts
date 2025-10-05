@@ -35,14 +35,12 @@ export type LLMUsage = {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
-  reasoningTokens: number;
 };
 
 const currentUsage: LLMUsage = {
   inputTokens: 0,
   outputTokens: 0,
   totalTokens: 0,
-  reasoningTokens: 0,
 };
 
 export function getCurrentUsage(): LLMUsage {
@@ -53,7 +51,6 @@ export function resetCurrentUsage(): void {
   currentUsage.inputTokens = 0;
   currentUsage.outputTokens = 0;
   currentUsage.totalTokens = 0;
-  currentUsage.reasoningTokens = 0;
 }
 
 export async function callLLM<Schema>(
@@ -67,6 +64,5 @@ export async function callLLM<Schema>(
   currentUsage.inputTokens += result.usage.inputTokens ?? 0;
   currentUsage.outputTokens += result.usage.outputTokens ?? 0;
   currentUsage.totalTokens += result.usage.totalTokens ?? 0;
-  currentUsage.reasoningTokens += result.usage.reasoningTokens ?? 0;
   return result;
 }

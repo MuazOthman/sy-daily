@@ -7,9 +7,15 @@ Globals:
     Runtime: nodejs22.x
     Architectures:
       - arm64
+    EventInvokeConfig:
+      MaximumEventAgeInSeconds: 3600
+      MaximumRetryAttempts: 0
     Environment:
       Variables:
         STATE_TABLE_NAME: !Ref StateTable
+        NODE_OPTIONS: --enable-source-maps
+        NODE_ENV: production
+        IS_LAMBDA: "true"
 
 Parameters:
   TelegramBotToken:
@@ -45,7 +51,168 @@ Parameters:
     Type: String
     NoEcho: true
     Description: GitHub token for publishing to website
+  SimulateWebsitePublish:
+    Type: String
+    Default: "false"
+    Description: Whether to simulate the website publish
+  AlertEmail:
+    Type: String
+    Description: Email address to receive DLQ alerts
 Resources:
+  # SNS Topic for DLQ Alerts
+  DLQAlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: Lambda DLQ Alerts
+      Subscription:
+        - Endpoint: !Ref AlertEmail
+          Protocol: email
+
+  # SQS Dead Letter Queues - One per Lambda function
+  CollectFunctionDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub ${AWS::StackName}-CollectFunction-DLQ
+      MessageRetentionPeriod: 1209600 # 14 days
+      VisibilityTimeout: 300
+
+  CollectFunctionDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alert when messages are sent to CollectFunction DLQ
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt CollectFunctionDLQ.QueueName
+      AlarmActions:
+        - !Ref DLQAlertTopic
+
+  DeduplicateFunctionDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub ${AWS::StackName}-DeduplicateFunction-DLQ
+      MessageRetentionPeriod: 1209600 # 14 days
+      VisibilityTimeout: 300
+
+  DeduplicateFunctionDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alert when messages are sent to DeduplicateFunction DLQ
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt DeduplicateFunctionDLQ.QueueName
+      AlarmActions:
+        - !Ref DLQAlertTopic
+
+  SummarizeFunctionDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub ${AWS::StackName}-SummarizeFunction-DLQ
+      MessageRetentionPeriod: 1209600 # 14 days
+      VisibilityTimeout: 300
+
+  SummarizeFunctionDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alert when messages are sent to SummarizeFunction DLQ
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt SummarizeFunctionDLQ.QueueName
+      AlarmActions:
+        - !Ref DLQAlertTopic
+
+  PublishToWebsiteFunctionDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub ${AWS::StackName}-PublishToWebsiteFunction-DLQ
+      MessageRetentionPeriod: 1209600 # 14 days
+      VisibilityTimeout: 300
+
+  PublishToWebsiteFunctionDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alert when messages are sent to PublishToWebsiteFunction DLQ
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt PublishToWebsiteFunctionDLQ.QueueName
+      AlarmActions:
+        - !Ref DLQAlertTopic
+
+  PostToTelegramEnglishFunctionDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub ${AWS::StackName}-PostToTelegramEnglishFunction-DLQ
+      MessageRetentionPeriod: 1209600 # 14 days
+      VisibilityTimeout: 300
+
+  PostToTelegramEnglishFunctionDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alert when messages are sent to PostToTelegramEnglishFunction DLQ
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt PostToTelegramEnglishFunctionDLQ.QueueName
+      AlarmActions:
+        - !Ref DLQAlertTopic
+
+  PostToTelegramArabicFunctionDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub ${AWS::StackName}-PostToTelegramArabicFunction-DLQ
+      MessageRetentionPeriod: 1209600 # 14 days
+      VisibilityTimeout: 300
+
+  PostToTelegramArabicFunctionDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alert when messages are sent to PostToTelegramArabicFunction DLQ
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt PostToTelegramArabicFunctionDLQ.QueueName
+      AlarmActions:
+        - !Ref DLQAlertTopic
+
   # Custom EventBridge Event Bus for GitHub Actions
   GitHubActionsEventBus:
     Type: AWS::Events::EventBus
@@ -83,6 +250,9 @@ Resources:
       Handler: Collect.handler
       Timeout: 600 # Increased timeout for web scraping
       MemorySize: 1024
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt CollectFunctionDLQ.Arn
       Events:
         DailySchedule:
           Type: Schedule
@@ -95,11 +265,10 @@ Resources:
             BucketName: !Ref NewsDataBucket
         - DynamoDBCrudPolicy:
             TableName: !Ref StateTable
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt CollectFunctionDLQ.QueueName
       Environment:
         Variables:
-          NODE_OPTIONS: --enable-source-maps
-          NODE_ENV: production
-          IS_LAMBDA: "true"
           S3_BUCKET_NAME: !Ref NewsDataBucket
           TELEGRAM_API_ID: !Ref TelegramApiId
           TELEGRAM_API_HASH: !Ref TelegramApiHash
@@ -115,16 +284,18 @@ Resources:
       Handler: Deduplicate.handler
       Timeout: 900 # Increased timeout for AI processing
       MemorySize: 1024
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt DeduplicateFunctionDLQ.Arn
       Policies:
         - S3CrudPolicy:
             BucketName: !Ref NewsDataBucket
         - DynamoDBCrudPolicy:
             TableName: !Ref StateTable
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt DeduplicateFunctionDLQ.QueueName
       Environment:
         Variables:
-          NODE_OPTIONS: --enable-source-maps
-          NODE_ENV: production
-          IS_LAMBDA: "true"
           S3_BUCKET_NAME: !Ref NewsDataBucket
           TELEGRAM_API_ID: !Ref TelegramApiId
           TELEGRAM_API_HASH: !Ref TelegramApiHash
@@ -153,16 +324,18 @@ Resources:
       Handler: Summarize.handler
       Timeout: 600 # Increased timeout for AI processing
       MemorySize: 512
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt SummarizeFunctionDLQ.Arn
       Policies:
         - S3CrudPolicy:
             BucketName: !Ref NewsDataBucket
         - DynamoDBCrudPolicy:
             TableName: !Ref StateTable
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt SummarizeFunctionDLQ.QueueName
       Environment:
         Variables:
-          NODE_OPTIONS: --enable-source-maps
-          NODE_ENV: production
-          IS_LAMBDA: "true"
           S3_BUCKET_NAME: !Ref NewsDataBucket
           TELEGRAM_API_ID: !Ref TelegramApiId
           TELEGRAM_API_HASH: !Ref TelegramApiHash
@@ -191,6 +364,9 @@ Resources:
       Handler: PublishToWebsite.handler
       Timeout: 60
       MemorySize: 256
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt PublishToWebsiteFunctionDLQ.Arn
       Layers:
         - arn:aws:lambda:us-east-1:347599033421:layer:amazon_linux_fonts:1
         - arn:aws:lambda:us-east-1:347599033421:layer:stix-fonts:1
@@ -199,17 +375,20 @@ Resources:
             BucketName: !Ref NewsDataBucket
         - DynamoDBCrudPolicy:
             TableName: !Ref StateTable
+        - EventBridgePutEventsPolicy:
+            EventBusName: !Ref GitHubActionsEventBus
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt PublishToWebsiteFunctionDLQ.QueueName
       Environment:
         Variables:
-          NODE_OPTIONS: --enable-source-maps
-          NODE_ENV: production
-          IS_LAMBDA: "true"
           FONTCONFIG_PATH: /opt/etc/fonts
           GITHUB_OWNER: "MuazOthman"
           GITHUB_REPO: "www.syria-daily.com"
           GITHUB_BRANCH: "main"
           GITHUB_TOKEN: !Ref GithubToken
           BUCKET_NAME: !Ref NewsDataBucket
+          SIMULATE_WEBSITE_PUBLISH: !Ref SimulateWebsitePublish
+          BUS_NAME: !GetAtt GitHubActionsEventBus.Arn
       Events:
         FromEventBridge:
           Type: EventBridgeRule
@@ -231,6 +410,9 @@ Resources:
       Handler: PostToTelegram.handler
       Timeout: 60
       MemorySize: 512
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt PostToTelegramEnglishFunctionDLQ.Arn
       Layers:
         - arn:aws:lambda:us-east-1:347599033421:layer:amazon_linux_fonts:1
         - arn:aws:lambda:us-east-1:347599033421:layer:stix-fonts:1
@@ -239,11 +421,10 @@ Resources:
             BucketName: !Ref NewsDataBucket
         - DynamoDBCrudPolicy:
             TableName: !Ref StateTable
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt PostToTelegramEnglishFunctionDLQ.QueueName
       Environment:
         Variables:
-          NODE_OPTIONS: --enable-source-maps
-          NODE_ENV: production
-          IS_LAMBDA: "true"
           CONTENT_LANGUAGE: "english"
           FONTCONFIG_PATH: /opt/etc/fonts
           TELEGRAM_API_ID: !Ref TelegramApiId
@@ -267,6 +448,9 @@ Resources:
       Handler: PostToTelegram.handler
       Timeout: 60
       MemorySize: 512
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt PostToTelegramArabicFunctionDLQ.Arn
       Layers:
         - arn:aws:lambda:us-east-1:347599033421:layer:amazon_linux_fonts:1
         - arn:aws:lambda:us-east-1:347599033421:layer:stix-fonts:1
@@ -275,11 +459,10 @@ Resources:
             BucketName: !Ref NewsDataBucket
         - DynamoDBCrudPolicy:
             TableName: !Ref StateTable
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt PostToTelegramArabicFunctionDLQ.QueueName
       Environment:
         Variables:
-          NODE_OPTIONS: --enable-source-maps
-          NODE_ENV: production
-          IS_LAMBDA: "true"
           CONTENT_LANGUAGE: "arabic"
           FONTCONFIG_PATH: /opt/etc/fonts
           TELEGRAM_API_ID: !Ref TelegramApiId

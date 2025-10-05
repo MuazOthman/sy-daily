@@ -86,11 +86,17 @@ export const handler: EventBridgeHandler<"Object Created", any, void> = async (
       })
     );
 
-    await updateBriefingSummarizedTime({
-      date: deduplicatedNews.date,
-      summarizedTime: new Date(),
-      summarizedUsage: getCurrentUsage(),
-    });
+    try {
+      await updateBriefingSummarizedTime({
+        date: deduplicatedNews.date,
+        summarizedTime: new Date(),
+        summarizedUsage: getCurrentUsage(),
+      });
+    } catch (error) {
+      console.error("Error in updating briefing:", error);
+      console.log("Gracefully exiting...");
+      return;
+    }
 
     console.log(`Successfully uploaded news data to S3: ${s3Key}`);
   } catch (error) {

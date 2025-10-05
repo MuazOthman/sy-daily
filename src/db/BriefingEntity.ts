@@ -10,6 +10,7 @@ import {
   string,
   UpdateItemCommand,
   $prepend,
+  $set,
 } from "dynamodb-toolbox";
 import { StateTable } from "./Table";
 import {
@@ -145,6 +146,22 @@ export async function updateBriefingDeduplicated({
   overwrite,
 }: BriefingWriteOperationParamsDeduplicated) {
   const currentBriefing = await getBriefing(date);
+  console.log(
+    JSON.stringify(
+      {
+        operation: "updateBriefingDeduplicated",
+        args: {
+          date,
+          deduplicatedTime,
+          deduplicatedUsage,
+          overwrite,
+        },
+        currentBriefing,
+      },
+      null,
+      2
+    )
+  );
   if (!currentBriefing) {
     throw new Error(`Briefing ${date} not found`);
   }
@@ -158,8 +175,13 @@ export async function updateBriefingDeduplicated({
     typeof deduplicatedTime === "string"
       ? deduplicatedTime
       : deduplicatedTime.toISOString();
-  await BriefingEntity.build(PutItemCommand)
-    .item({ ...currentBriefing, deduplicatedTime: time, deduplicatedUsage })
+
+  await BriefingEntity.build(UpdateItemCommand)
+    .item({
+      date,
+      deduplicatedTime: time,
+      deduplicatedUsage: $set(deduplicatedUsage),
+    })
     .send();
 }
 
@@ -170,6 +192,22 @@ export async function updateBriefingSummarizedTime({
   overwrite,
 }: BriefingWriteOperationParamsSummarizedTime) {
   const currentBriefing = await getBriefing(date);
+  console.log(
+    JSON.stringify(
+      {
+        operation: "updateBriefingSummarizedTime",
+        args: {
+          date,
+          summarizedTime,
+          summarizedUsage,
+          overwrite,
+        },
+        currentBriefing,
+      },
+      null,
+      2
+    )
+  );
   if (!currentBriefing) {
     throw new Error(`Briefing ${date} not found`);
   }
@@ -183,8 +221,13 @@ export async function updateBriefingSummarizedTime({
     typeof summarizedTime === "string"
       ? summarizedTime
       : summarizedTime.toISOString();
-  await BriefingEntity.build(PutItemCommand)
-    .item({ ...currentBriefing, summarizedTime: time, summarizedUsage })
+
+  await BriefingEntity.build(UpdateItemCommand)
+    .item({
+      date,
+      summarizedTime: time,
+      summarizedUsage: $set(summarizedUsage),
+    })
     .send();
 }
 
@@ -194,6 +237,21 @@ export async function updateBriefingPublishedToWebsiteTime({
   overwrite,
 }: BriefingWriteOperationParamsPublishedToWebsiteTime) {
   const currentBriefing = await getBriefing(date);
+  console.log(
+    JSON.stringify(
+      {
+        operation: "updateBriefingPublishedToWebsiteTime",
+        args: {
+          date,
+          publishedToWebsiteTime,
+          overwrite,
+        },
+        currentBriefing,
+      },
+      null,
+      2
+    )
+  );
   if (!currentBriefing) {
     throw new Error(`Briefing ${date} not found`);
   }
@@ -220,6 +278,23 @@ export async function updateBriefingPost({
   overwrite,
 }: BriefingWriteOperationParamsPost) {
   const currentBriefing = await getBriefing(date);
+  console.log(
+    JSON.stringify(
+      {
+        operation: "updateBriefingPost",
+        args: {
+          date,
+          formatter,
+          language,
+          postUrl,
+          overwrite,
+        },
+        currentBriefing,
+      },
+      null,
+      2
+    )
+  );
   if (!currentBriefing) {
     throw new Error(`Briefing ${date} not found`);
   }

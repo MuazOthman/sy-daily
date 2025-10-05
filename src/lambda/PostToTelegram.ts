@@ -154,18 +154,26 @@ export const handler: EventBridgeHandler<string, Payload, void> = async (
       parseMode: "html",
       silent: false,
     });
-    await user.logout();
-    let postUrl = `https://t.me/${CHANNEL_ID}/${result.id}`;
-    if (CHANNEL_ID.startsWith("-100")) {
-      postUrl = `https://t.me/c/${CHANNEL_ID.slice(4)}/${result.id}`;
-    }
+    try {
+      await user.logout();
+      let postUrl = `https://t.me/${CHANNEL_ID}/${result.id}`;
+      if (CHANNEL_ID.startsWith("-100")) {
+        // if the channel id starts with -100, it's a private channel or we simply
+        // don't have the handle, so we need to use the channel id without the -100
+        postUrl = `https://t.me/c/${CHANNEL_ID.slice(4)}/${result.id}`;
+      }
 
-    await updateBriefingPost({
-      date: newsData.date,
-      formatter: "telegram",
-      language: CONTENT_LANGUAGE,
-      postUrl,
-    });
+      await updateBriefingPost({
+        date: newsData.date,
+        formatter: "telegram",
+        language: CONTENT_LANGUAGE,
+        postUrl,
+      });
+    } catch (error) {
+      console.error("Error in updating briefing:", error);
+      console.log("Gracefully exiting...");
+      return;
+    }
 
     console.log("Successfully posted summary to Telegram");
   } catch (error) {

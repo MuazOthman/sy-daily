@@ -8,6 +8,8 @@ set -o pipefail
 # Load environment variables from .env file
 source .env
 
+yarn build
+
 sam build
 
 # Install sharp with Linux binaries using Docker in isolated container
@@ -37,4 +39,6 @@ sam deploy --no-fail-on-empty-changeset \
   "ParameterKey=OpenaiApiKey,ParameterValue=${OPENAI_API_KEY}" \
   "ParameterKey=TelegramChannelIdEnglish,ParameterValue=${TELEGRAM_CHANNEL_ID_ENGLISH}" \
   "ParameterKey=TelegramChannelIdArabic,ParameterValue=${TELEGRAM_CHANNEL_ID_ARABIC}" \
-  "ParameterKey=GithubToken,ParameterValue=${GITHUB_TOKEN}"
+  "ParameterKey=GithubToken,ParameterValue=${GITHUB_TOKEN}" \
+  "ParameterKey=SimulateWebsitePublish,ParameterValue=${SIMULATE_WEBSITE_PUBLISH}" \
+  "ParameterKey=AlertEmail,ParameterValue=${ALERT_EMAIL}"
