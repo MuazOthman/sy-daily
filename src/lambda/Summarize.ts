@@ -5,30 +5,44 @@ import {
   GetObjectCommand,
 } from "@aws-sdk/client-s3";
 import { summarize } from "../ai/summarize";
-import { ProcessedNews, SimplifiedNewsWithMetadataSchema } from "../types";
+import {
+  ProcessedNews,
+  SimplifiedNewsWithMetadataSchema,
+  DeduplicatedNewsDataEvent,
+} from "../types";
 import {
   getBriefing,
   updateBriefingSummarizedTime,
 } from "../db/BriefingEntity";
 import { getCurrentUsage, resetCurrentUsage } from "../ai/getLLMProvider";
+import {
+  EventBridgeClient,
+  PutEventsCommand,
+} from "@aws-sdk/client-eventbridge";
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION || "us-east-1",
 });
+
+const eventBridgeClient = new EventBridgeClient({
+  region: process.env.AWS_REGION || "us-east-1",
+});
+
 const BUCKET_NAME = process.env.S3_BUCKET_NAME!;
 
-export const handler: EventBridgeHandler<"Object Created", any, void> = async (
-  event
-) => {
+export const handler: EventBridgeHandler<
+  "NewsDeduplicated",
+  DeduplicatedNewsDataEvent,
+  void
+> = async (event) => {
   console.log("Received EventBridge event:", JSON.stringify(event));
 
   try {
     console.log("Starting summarization for:", event.time);
 
     // Extract S3 details from EventBridge event
-    const detail = event.detail;
-    const bucket = detail.bucket?.name;
-    const key = detail.object?.key;
+    const bucket = BUCKET_NAME;
+    const key = `deduplicated-news/${event.detail.date}.json`;
 
     if (!bucket || !key) {
       throw new Error("Missing bucket or key in EventBridge event detail");
@@ -85,18 +99,24 @@ export const handler: EventBridgeHandler<"Object Created", any, void> = async (
         ContentType: "application/json",
       })
     );
+    await updateBriefingSummarizedTime({
+      date: deduplicatedNews.date,
+      summarizedTime: new Date(),
+      summarizedUsage: getCurrentUsage(),
+    });
 
-    try {
-      await updateBriefingSummarizedTime({
-        date: deduplicatedNews.date,
-        summarizedTime: new Date(),
-        summarizedUsage: getCurrentUsage(),
-      });
-    } catch (error) {
-      console.error("Error in updating briefing:", error);
-      console.log("Gracefully exiting...");
-      return;
-    }
+    await eventBridgeClient.send(
+      new PutEventsCommand({
+        Entries: [
+          {
+            EventBusName: process.env.BUS_NAME,
+            Source: "news.summarization",
+            DetailType: "NewsSummarized",
+            Detail: JSON.stringify({ date: deduplicatedNews.date }),
+          },
+        ],
+      })
+    );
 
     console.log(`Successfully uploaded news data to S3: ${s3Key}`);
   } catch (error) {

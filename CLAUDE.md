@@ -45,35 +45,35 @@ The system uses a 5-stage pipeline with separate Lambda functions connected via 
   - **Timeout**: 10 minutes for web scraping
   - **Memory**: 1GB for intensive processing
   - **Architecture**: ARM64
-  - **Output**: Uploads collected data to S3 at `collected-news/{YYYY-MM-DD}.json`
+  - **Output**: Uploads collected data to S3 at `collected-news/{YYYY-MM-DD}.json` and emits `NewsCollected` event
   - **Core function**: `src/news-collection/collect.ts` - Fetches and processes posts from configured channels
 
 - **DeduplicateFunction**: `src/lambda/Deduplicate.ts` - AI-powered early deduplication with multi-round processing
 
-  - **Trigger**: EventBridge events from S3 ObjectCreated (`collected-news/` prefix)
+  - **Trigger**: Custom EventBridge event `NewsCollected` from CollectFunction
   - **Timeout**: 15 minutes for multi-round AI processing
   - **Memory**: 1GB for AI operations
   - **Architecture**: ARM64
-  - **Output**: Uploads deduplicated data to S3 at `deduplicated-news/{YYYY-MM-DD}.json`
+  - **Output**: Uploads deduplicated data to S3 at `deduplicated-news/{YYYY-MM-DD}.json` and emits `NewsDeduplicated` event
   - **Core function**: `src/ai/deduplicate.ts` - Multi-round batch deduplication with round-robin redistribution
   - **Processing**: Uses 150-item batches, 5 parallel requests, early stopping at 98% ratio threshold
 
 - **SummarizeFunction**: `src/lambda/Summarize.ts` - AI-powered summarization and translation
 
-  - **Trigger**: EventBridge events from S3 ObjectCreated (`deduplicated-news/` prefix)
+  - **Trigger**: Custom EventBridge event `NewsDeduplicated` from DeduplicateFunction
   - **Timeout**: 10 minutes for AI processing
   - **Memory**: 512MB for AI operations
   - **Architecture**: ARM64
-  - **Output**: Uploads summarized data to S3 at `summarized-news/{YYYY-MM-DD}.json`
+  - **Output**: Uploads summarized data to S3 at `summarized-news/{YYYY-MM-DD}.json` and emits `NewsSummarized` event
   - **Core function**: `src/ai/summarize.ts` - Batch summarization with parallel processing (up to 30 batches)
 
 - **PublishToWebsiteFunction**: `src/lambda/PublishToWebsite.ts` - Publishes news to GitHub Pages website
 
-  - **Trigger**: EventBridge events from S3 ObjectCreated (`summarized-news/` prefix)
+  - **Trigger**: Custom EventBridge event `NewsSummarized` from SummarizeFunction
   - **Timeout**: 1 minute for GitHub API operations
   - **Memory**: 256MB for lightweight publishing
   - **Architecture**: ARM64
-  - **Output**: Triggers custom EventBridge event (`summaries-published`) after successful publishing
+  - **Output**: Triggers custom EventBridge event `summaries-published` after successful publishing
   - **Core function**: Publishes to GitHub repository for website deployment
 
 - **PostToTelegramEnglishFunction**: `src/lambda/PostToTelegram.ts` - Posts English formatted news with banner
@@ -98,6 +98,12 @@ The system uses a 5-stage pipeline with separate Lambda functions connected via 
   - **Stage 2 Output**: `deduplicated-news/{YYYY-MM-DD}.json` - Deduplicated items (early deduplication)
   - **Stage 3 Output**: `summarized-news/{YYYY-MM-DD}.json` - Summarized and translated items
   - **Banners**: `composedBanners/{language}/{label}.jpg` - Pre-composed banner images
+
+- **Custom EventBridge Events**: Pipeline orchestration via custom events
+  - **NewsCollected**: Emitted by CollectFunction after uploading to S3, triggers DeduplicateFunction
+  - **NewsDeduplicated**: Emitted by DeduplicateFunction after uploading to S3, triggers SummarizeFunction
+  - **NewsSummarized**: Emitted by SummarizeFunction after uploading to S3, triggers PublishToWebsiteFunction
+  - **summaries-published**: Emitted by PublishToWebsiteFunction after publishing, triggers both PostToTelegram functions
 
 - **DynamoDB StateTable**: Tracks briefing processing state and prevents duplicate processing
   - **Primary Key**: `PK` (partition key), `SK` (sort key)
@@ -124,8 +130,9 @@ The system uses a 5-stage pipeline with separate Lambda functions connected via 
    - `processTelegramPost()` - Processes individual posts and extracts content from all channel types
 3. Upload raw collected posts to S3 at `collected-news/{date}.json`
 4. Update briefing state via `updateBriefingCollectedTime()` - Records collection completion timestamp
+5. Emit custom EventBridge event `NewsCollected` to trigger next stage
 
-**Stage 2: Early Deduplication** (`DeduplicateFunction`): 5. Triggered by S3 ObjectCreated event from Stage 1 6. Check briefing state via `getBriefing()` - Validates briefing exists and hasn't been deduplicated yet 7. Download collected posts from S3 8. `deduplicate()` - Multi-round AI-powered deduplication in `src/ai/deduplicate.ts`
+**Stage 2: Early Deduplication** (`DeduplicateFunction`): 6. Triggered by custom EventBridge event `NewsCollected` from Stage 1 7. Check briefing state via `getBriefing()` - Validates briefing exists and hasn't been deduplicated yet 8. Download collected posts from S3 9. `deduplicate()` - Multi-round AI-powered deduplication in `src/ai/deduplicate.ts`
 
 - Processes items in batches of 150 items
 - Uses round-robin redistribution between rounds to maximize deduplication opportunities
@@ -133,21 +140,23 @@ The system uses a 5-stage pipeline with separate Lambda functions connected via 
 - Continues until ratio threshold (98%) is reached or max rounds completed
 - Merges similar stories while preserving all unique sources
 
-9. Upload deduplicated data to S3 at `deduplicated-news/{date}.json`
-10. Update briefing state via `updateBriefingDeduplicatedTime()` - Records deduplication completion timestamp
+10. Upload deduplicated data to S3 at `deduplicated-news/{date}.json`
+11. Update briefing state via `updateBriefingDeduplicatedTime()` - Records deduplication completion timestamp
+12. Emit custom EventBridge event `NewsDeduplicated` to trigger next stage
 
-**Stage 3: Summarization** (`SummarizeFunction`): 11. Triggered by S3 ObjectCreated event from Stage 2 12. Check briefing state via `getBriefing()` - Validates briefing exists and hasn't been summarized yet 13. Download deduplicated posts from S3 14. `summarize()` - Batch AI summarization in `src/ai/summarize.ts`
+**Stage 3: Summarization** (`SummarizeFunction`): 13. Triggered by custom EventBridge event `NewsDeduplicated` from Stage 2 14. Check briefing state via `getBriefing()` - Validates briefing exists and hasn't been summarized yet 15. Download deduplicated posts from S3 16. `summarize()` - Batch AI summarization in `src/ai/summarize.ts`
 
 - Processes up to 30 batches in parallel
 - Each batch contains up to 20 news items
 - Uses AI to create English summaries and translations from Arabic content
 
-15. Upload summarized data to S3 at `summarized-news/{date}.json`
-16. Update briefing state via `updateBriefingSummarizedTime()` - Records summarization completion timestamp
+17. Upload summarized data to S3 at `summarized-news/{date}.json`
+18. Update briefing state via `updateBriefingSummarizedTime()` - Records summarization completion timestamp
+19. Emit custom EventBridge event `NewsSummarized` to trigger next stage
 
-**Stage 4: Website Publishing** (`PublishToWebsiteFunction`): 17. Triggered by S3 ObjectCreated event from Stage 3 18. Check briefing state via `getBriefing()` - Validates briefing exists and hasn't been published yet 19. Download summarized news from S3 20. Publish content to GitHub repository for website deployment 21. Update briefing state via `updateBriefingPublishedToWebsiteTime()` - Records publishing completion timestamp 22. Trigger custom EventBridge event (`summaries-published`) to notify Telegram posting functions
+**Stage 4: Website Publishing** (`PublishToWebsiteFunction`): 20. Triggered by custom EventBridge event `NewsSummarized` from Stage 3 21. Check briefing state via `getBriefing()` - Validates briefing exists and hasn't been published yet 22. Download summarized news from S3 23. Publish content to GitHub repository for website deployment 24. Update briefing state via `updateBriefingPublishedToWebsiteTime()` - Records publishing completion timestamp 25. Emit custom EventBridge event `summaries-published` to notify Telegram posting functions
 
-**Stage 5: Telegram Posting** (`PostToTelegramEnglishFunction` & `PostToTelegramArabicFunction`): 23. Both triggered by custom EventBridge event (`summaries-published`) from Stage 4 24. Check briefing state via `getBriefing()` - Validates briefing exists and hasn't been posted for this language yet 25. Download summarized news from S3 26. `prioritizeAndFormat()` - Final prioritization and formatting in `src/prioritizeAndFormat.ts` - `prioritizeNews()` - Prioritizes news items based on importance and relevance - `formatNewsItemsForTelegram()` - Formats news items into structured Telegram messages (language determined by `CONTENT_LANGUAGE` env var) 27. `getMostFrequentLabel()` - Determines banner category from news labels 28. Fetch pre-composed banner from S3 (`composedBanners/{language}/{label}.jpg`) 29. `addDateToBanner()` - Adds date overlay to banner image 30. `TelegramUser.sendPhotoToChannel()` - Posts banner image with formatted summary to target Telegram channel 31. Update briefing state via `updateBriefingPost()` - Records post URL in DynamoDB
+**Stage 5: Telegram Posting** (`PostToTelegramEnglishFunction` & `PostToTelegramArabicFunction`): 26. Both triggered by custom EventBridge event `summaries-published` from Stage 4 27. Check briefing state via `getBriefing()` - Validates briefing exists and hasn't been posted for this language yet 28. Download summarized news from S3 29. `prioritizeAndFormat()` - Final prioritization and formatting in `src/prioritizeAndFormat.ts` - `prioritizeNews()` - Prioritizes news items based on importance and relevance - `formatNewsItemsForTelegram()` - Formats news items into structured Telegram messages (language determined by `CONTENT_LANGUAGE` env var) 30. `getMostFrequentLabel()` - Determines banner category from news labels 31. Fetch pre-composed banner from S3 (`composedBanners/{language}/{label}.jpg`) 32. `addDateToBanner()` - Adds date overlay to banner image 33. `TelegramUser.sendPhotoToChannel()` - Posts banner image with formatted summary to target Telegram channel 34. Update briefing state via `updateBriefingPost()` - Records post URL in DynamoDB
 
 **Local Development Flow**:
 
@@ -258,12 +267,12 @@ Defined in `template.yml` (SAM template):
   - **SummarizeFunction**: 10-minute timeout, 512MB memory, ARM64 architecture
   - **PublishToWebsiteFunction**: 1-minute timeout, 256MB memory, ARM64 architecture
   - **PostToTelegramEnglish/Arabic**: 1-minute timeout, 512MB memory, ARM64 architecture
-- **EventBridge integration** for S3-to-Lambda and custom event triggering:
-  - `collected-news/` prefix triggers DeduplicateFunction
-  - `deduplicated-news/` prefix triggers SummarizeFunction
-  - `summarized-news/` prefix triggers PublishToWebsiteFunction
-  - Custom `summaries-published` event triggers both PostToTelegram functions
-- **S3 Bucket** (`NewsDataBucket`) with EventBridge notifications enabled for pipeline orchestration
+- **EventBridge integration** with custom events for pipeline orchestration:
+  - Custom event `NewsCollected` triggers DeduplicateFunction
+  - Custom event `NewsDeduplicated` triggers SummarizeFunction
+  - Custom event `NewsSummarized` triggers PublishToWebsiteFunction
+  - Custom event `summaries-published` triggers both PostToTelegram functions
+- **S3 Bucket** (`NewsDataBucket`) for intermediary storage between pipeline stages
 - **DynamoDB StateTable** for pipeline state tracking with idempotency guarantees
   - Pay-per-request billing mode
   - Single-table design with PK/SK pattern
@@ -271,16 +280,18 @@ Defined in `template.yml` (SAM template):
   - Managed via dynamodb-toolbox library
 - **Error Handling & Monitoring**:
   - Dead Letter Queues (SQS) for each Lambda function with 14-day message retention
-  - CloudWatch alarms for DLQ messages with SNS email notifications
+  - CloudWatch alarms for DLQ messages (threshold: 2 messages over 2 minutes) with SNS email notifications
   - Graceful error handling in state update operations
-  - Zero retry attempts with 1-hour event age limit for Lambda invocations
+  - 2 retry attempts with 5-minute event age limit for Lambda invocations
+  - X-Ray tracing enabled for distributed tracing and performance monitoring
 - **Font rendering layers** for ARM64 posting functions (amazon_linux_fonts, stix-fonts)
-- **Custom EventBridge bus** (`GitHubActionsEventBus`) for GitHub Actions integration
+- **Custom EventBridge bus** (`GitHubActionsEventBus`) for pipeline orchestration and GitHub Actions integration
 - **Scheduled execution** via CloudWatch Events (20:01 UTC daily = 23:01 Damascus time) for CollectFunction
 - **Multi-provider AI support** with configurable model parameters (OpenAI/Anthropic) via `AI_MODEL` parameter
 - **Parameter-based configuration** with environment variable injection and language-specific configurations
 - **Global Environment Variables** (applied to all functions):
   - `STATE_TABLE_NAME` - DynamoDB table name
+  - `BUS_NAME` - EventBridge bus name for custom events
   - `NODE_OPTIONS=--enable-source-maps` - Source map support for debugging
   - `NODE_ENV=production` - Production mode
   - `IS_LAMBDA=true` - Lambda environment flag
@@ -288,9 +299,10 @@ Defined in `template.yml` (SAM template):
   - AWSLambdaBasicExecutionRole - CloudWatch Logs access
   - DynamoDBCrudPolicy - Full access to StateTable
   - SQSSendMessagePolicy - Write access to respective DLQ
+  - AWSXRayDaemonWriteAccess - X-Ray tracing support
 - **Function-specific IAM Policies**:
-  - CollectFunction: S3 write access
-  - DeduplicateFunction: S3 read/write access
-  - SummarizeFunction: S3 read/write access
+  - CollectFunction: S3 write access, EventBridge PutEvents to GitHubActionsEventBus
+  - DeduplicateFunction: S3 read/write access, EventBridge PutEvents to GitHubActionsEventBus
+  - SummarizeFunction: S3 read/write access, EventBridge PutEvents to GitHubActionsEventBus
   - PublishToWebsiteFunction: S3 read access, EventBridge PutEvents to GitHubActionsEventBus
   - PostToTelegram functions: S3 read access

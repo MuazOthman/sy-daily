@@ -140,3 +140,15 @@ export const CollectedNewsDataSchema = z.object({
 });
 
 export type CollectedNewsData = z.infer<typeof CollectedNewsDataSchema>;
+
+export type CollectedNewsDataEvent = {
+  date: string;
+};
+
+export type DeduplicatedNewsDataEvent = {
+  date: string;
+};
+
+export type SummarizedNewsDataEvent = {
+  date: string;
+};

@@ -10,10 +10,19 @@ import {
   initializeBriefing,
   updateBriefingCollectedTime,
 } from "../db/BriefingEntity";
+import {
+  EventBridgeClient,
+  PutEventsCommand,
+} from "@aws-sdk/client-eventbridge";
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION || "us-east-1",
 });
+
+const eventBridgeClient = new EventBridgeClient({
+  region: process.env.AWS_REGION || "us-east-1",
+});
+
 const BUCKET_NAME = process.env.S3_BUCKET_NAME!;
 
 const ONE_MINUTE_MILLISECONDS = 60 * 1000;
@@ -54,6 +63,18 @@ export const handler: ScheduledHandler = async (event) => {
       collectedTime: new Date(),
     });
 
+    await eventBridgeClient.send(
+      new PutEventsCommand({
+        Entries: [
+          {
+            EventBusName: process.env.BUS_NAME,
+            Source: "news.collection",
+            DetailType: "NewsCollected",
+            Detail: JSON.stringify({ date: damascusDate }),
+          },
+        ],
+      })
+    );
     console.log(`Successfully uploaded news data to S3: ${s3Key}`);
   } catch (error) {
     console.error("Error in Collect function:", error);

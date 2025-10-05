@@ -5,27 +5,41 @@ import {
   GetObjectCommand,
 } from "@aws-sdk/client-s3";
 import { deduplicate } from "../ai/deduplicate";
-import { CollectedNewsDataSchema, SimplifiedNewsWithMetadata } from "../types";
+import {
+  CollectedNewsDataSchema,
+  SimplifiedNewsWithMetadata,
+  CollectedNewsDataEvent,
+} from "../types";
 import { getBriefing, updateBriefingDeduplicated } from "../db/BriefingEntity";
 import { getCurrentUsage, resetCurrentUsage } from "../ai/getLLMProvider";
+import {
+  EventBridgeClient,
+  PutEventsCommand,
+} from "@aws-sdk/client-eventbridge";
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION || "us-east-1",
 });
+
+const eventBridgeClient = new EventBridgeClient({
+  region: process.env.AWS_REGION || "us-east-1",
+});
+
 const BUCKET_NAME = process.env.S3_BUCKET_NAME!;
 
-export const handler: EventBridgeHandler<"Object Created", any, void> = async (
-  event
-) => {
+export const handler: EventBridgeHandler<
+  "NewsCollected",
+  CollectedNewsDataEvent,
+  void
+> = async (event) => {
   console.log("Received EventBridge event:", JSON.stringify(event));
 
   try {
     console.log("Starting deduplication for:", event.time);
 
     // Extract S3 details from EventBridge event
-    const detail = event.detail;
-    const bucket = detail.bucket?.name;
-    const key = detail.object?.key;
+    const bucket = BUCKET_NAME;
+    const key = `collected-news/${event.detail.date}.json`;
 
     if (!bucket || !key) {
       throw new Error("Missing bucket or key in EventBridge event detail");
@@ -75,18 +89,24 @@ export const handler: EventBridgeHandler<"Object Created", any, void> = async (
         ContentType: "application/json",
       })
     );
-    try {
-      await updateBriefingDeduplicated({
-        date: collectedNews.date,
-        deduplicatedTime: new Date(),
-        deduplicatedUsage: getCurrentUsage(),
-      });
-    } catch (error) {
-      console.error("Error in updating briefing:", error);
-      console.log("Gracefully exiting...");
-      return;
-    }
+    await updateBriefingDeduplicated({
+      date: collectedNews.date,
+      deduplicatedTime: new Date(),
+      deduplicatedUsage: getCurrentUsage(),
+    });
 
+    await eventBridgeClient.send(
+      new PutEventsCommand({
+        Entries: [
+          {
+            EventBusName: process.env.BUS_NAME,
+            Source: "news.deduplication",
+            DetailType: "NewsDeduplicated",
+            Detail: JSON.stringify({ date: collectedNews.date }),
+          },
+        ],
+      })
+    );
     console.log(`Successfully uploaded news data to S3: ${s3Key}`);
   } catch (error) {
     console.error("Error in Deduplicate function:", error);

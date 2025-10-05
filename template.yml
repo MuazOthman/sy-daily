@@ -8,14 +8,16 @@ Globals:
     Architectures:
       - arm64
     EventInvokeConfig:
-      MaximumEventAgeInSeconds: 3600
-      MaximumRetryAttempts: 0
+      MaximumEventAgeInSeconds: 300 # 5 minutes
+      MaximumRetryAttempts: 2 # 2 retries
+    Tracing: Active
     Environment:
       Variables:
         STATE_TABLE_NAME: !Ref StateTable
         NODE_OPTIONS: --enable-source-maps
         NODE_ENV: production
         IS_LAMBDA: "true"
+        BUS_NAME: !GetAtt GitHubActionsEventBus.Arn
 
 Parameters:
   TelegramBotToken:
@@ -83,9 +85,9 @@ Resources:
       MetricName: ApproximateNumberOfMessagesVisible
       Namespace: AWS/SQS
       Statistic: Sum
-      Period: 60
+      Period: 120
       EvaluationPeriods: 1
-      Threshold: 1
+      Threshold: 2
       ComparisonOperator: GreaterThanOrEqualToThreshold
       Dimensions:
         - Name: QueueName
@@ -107,9 +109,9 @@ Resources:
       MetricName: ApproximateNumberOfMessagesVisible
       Namespace: AWS/SQS
       Statistic: Sum
-      Period: 60
+      Period: 120
       EvaluationPeriods: 1
-      Threshold: 1
+      Threshold: 2
       ComparisonOperator: GreaterThanOrEqualToThreshold
       Dimensions:
         - Name: QueueName
@@ -131,9 +133,9 @@ Resources:
       MetricName: ApproximateNumberOfMessagesVisible
       Namespace: AWS/SQS
       Statistic: Sum
-      Period: 60
+      Period: 120
       EvaluationPeriods: 1
-      Threshold: 1
+      Threshold: 2
       ComparisonOperator: GreaterThanOrEqualToThreshold
       Dimensions:
         - Name: QueueName
@@ -155,9 +157,9 @@ Resources:
       MetricName: ApproximateNumberOfMessagesVisible
       Namespace: AWS/SQS
       Statistic: Sum
-      Period: 60
+      Period: 120
       EvaluationPeriods: 1
-      Threshold: 1
+      Threshold: 2
       ComparisonOperator: GreaterThanOrEqualToThreshold
       Dimensions:
         - Name: QueueName
@@ -179,9 +181,9 @@ Resources:
       MetricName: ApproximateNumberOfMessagesVisible
       Namespace: AWS/SQS
       Statistic: Sum
-      Period: 60
+      Period: 120
       EvaluationPeriods: 1
-      Threshold: 1
+      Threshold: 2
       ComparisonOperator: GreaterThanOrEqualToThreshold
       Dimensions:
         - Name: QueueName
@@ -203,9 +205,9 @@ Resources:
       MetricName: ApproximateNumberOfMessagesVisible
       Namespace: AWS/SQS
       Statistic: Sum
-      Period: 60
+      Period: 120
       EvaluationPeriods: 1
-      Threshold: 1
+      Threshold: 2
       ComparisonOperator: GreaterThanOrEqualToThreshold
       Dimensions:
         - Name: QueueName
@@ -265,8 +267,11 @@ Resources:
             BucketName: !Ref NewsDataBucket
         - DynamoDBCrudPolicy:
             TableName: !Ref StateTable
+        - EventBridgePutEventsPolicy:
+            EventBusName: !Ref GitHubActionsEventBus
         - SQSSendMessagePolicy:
             QueueName: !GetAtt CollectFunctionDLQ.QueueName
+        - AWSXRayDaemonWriteAccess
       Environment:
         Variables:
           S3_BUCKET_NAME: !Ref NewsDataBucket
@@ -292,8 +297,11 @@ Resources:
             BucketName: !Ref NewsDataBucket
         - DynamoDBCrudPolicy:
             TableName: !Ref StateTable
+        - EventBridgePutEventsPolicy:
+            EventBusName: !Ref GitHubActionsEventBus
         - SQSSendMessagePolicy:
             QueueName: !GetAtt DeduplicateFunctionDLQ.QueueName
+        - AWSXRayDaemonWriteAccess
       Environment:
         Variables:
           S3_BUCKET_NAME: !Ref NewsDataBucket
@@ -307,16 +315,10 @@ Resources:
         FromEventBridge:
           Type: EventBridgeRule
           Properties:
+            EventBusName: !Ref GitHubActionsEventBus
             Pattern:
-              source: ["aws.s3"]
-              detail-type: ["Object Created"]
-              detail:
-                bucket:
-                  name: [!Ref NewsDataBucket]
-                object:
-                  key:
-                    - prefix: "collected-news/"
-
+              source: ["news.collection"]
+              detail-type: ["NewsCollected"]
   SummarizeFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -332,8 +334,11 @@ Resources:
             BucketName: !Ref NewsDataBucket
         - DynamoDBCrudPolicy:
             TableName: !Ref StateTable
+        - EventBridgePutEventsPolicy:
+            EventBusName: !Ref GitHubActionsEventBus
         - SQSSendMessagePolicy:
             QueueName: !GetAtt SummarizeFunctionDLQ.QueueName
+        - AWSXRayDaemonWriteAccess
       Environment:
         Variables:
           S3_BUCKET_NAME: !Ref NewsDataBucket
@@ -347,15 +352,10 @@ Resources:
         FromEventBridge:
           Type: EventBridgeRule
           Properties:
+            EventBusName: !Ref GitHubActionsEventBus
             Pattern:
-              source: ["aws.s3"]
-              detail-type: ["Object Created"]
-              detail:
-                bucket:
-                  name: [!Ref NewsDataBucket]
-                object:
-                  key:
-                    - prefix: "deduplicated-news/"
+              source: ["news.deduplication"]
+              detail-type: ["NewsDeduplicated"]
 
   PublishToWebsiteFunction:
     Type: AWS::Serverless::Function
@@ -379,6 +379,7 @@ Resources:
             EventBusName: !Ref GitHubActionsEventBus
         - SQSSendMessagePolicy:
             QueueName: !GetAtt PublishToWebsiteFunctionDLQ.QueueName
+        - AWSXRayDaemonWriteAccess
       Environment:
         Variables:
           FONTCONFIG_PATH: /opt/etc/fonts
@@ -388,20 +389,14 @@ Resources:
           GITHUB_TOKEN: !Ref GithubToken
           BUCKET_NAME: !Ref NewsDataBucket
           SIMULATE_WEBSITE_PUBLISH: !Ref SimulateWebsitePublish
-          BUS_NAME: !GetAtt GitHubActionsEventBus.Arn
       Events:
         FromEventBridge:
           Type: EventBridgeRule
           Properties:
+            EventBusName: !Ref GitHubActionsEventBus
             Pattern:
-              source: ["aws.s3"]
-              detail-type: ["Object Created"]
-              detail:
-                bucket:
-                  name: [!Ref NewsDataBucket]
-                object:
-                  key:
-                    - prefix: "summarized-news/"
+              source: ["news.summarization"]
+              detail-type: ["NewsSummarized"]
 
   PostToTelegramEnglishFunction:
     Type: AWS::Serverless::Function
@@ -423,6 +418,7 @@ Resources:
             TableName: !Ref StateTable
         - SQSSendMessagePolicy:
             QueueName: !GetAtt PostToTelegramEnglishFunctionDLQ.QueueName
+        - AWSXRayDaemonWriteAccess
       Environment:
         Variables:
           CONTENT_LANGUAGE: "english"
@@ -461,6 +457,7 @@ Resources:
             TableName: !Ref StateTable
         - SQSSendMessagePolicy:
             QueueName: !GetAtt PostToTelegramArabicFunctionDLQ.QueueName
+        - AWSXRayDaemonWriteAccess
       Environment:
         Variables:
           CONTENT_LANGUAGE: "arabic"

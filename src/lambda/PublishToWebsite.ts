@@ -1,6 +1,11 @@
 import { EventBridgeHandler } from "aws-lambda";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
-import { ContentLanguage, ProcessedNews, ProcessedNewsSchema } from "../types";
+import {
+  ContentLanguage,
+  ProcessedNews,
+  ProcessedNewsSchema,
+  SummarizedNewsDataEvent,
+} from "../types";
 import { prioritizeNews } from "../prioritizeNews";
 import { newsResponseToMarkdown } from "../formatting/markdownNewsFormatter";
 import { commitFilesToGitHub } from "../github";
@@ -87,16 +92,17 @@ async function getBanner(
   return banner;
 }
 
-export const handler: EventBridgeHandler<"Object Created", any, void> = async (
-  event
-) => {
+export const handler: EventBridgeHandler<
+  "NewsSummarized",
+  SummarizedNewsDataEvent,
+  void
+> = async (event) => {
   console.log("Received EventBridge event:", JSON.stringify(event));
 
   try {
     // Extract S3 details from EventBridge event
-    const detail = event.detail;
-    const bucket = detail.bucket?.name;
-    const key = detail.object?.key;
+    const bucket = BUCKET_NAME;
+    const key = `summarized-news/${event.detail.date}.json`;
 
     console.log(`Processing S3 object: ${bucket}/${key}`);
 
