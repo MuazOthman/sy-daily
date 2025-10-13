@@ -41,4 +41,5 @@ sam deploy --no-fail-on-empty-changeset \
   "ParameterKey=TelegramChannelIdArabic,ParameterValue=${TELEGRAM_CHANNEL_ID_ARABIC}" \
   "ParameterKey=GithubToken,ParameterValue=${GITHUB_TOKEN}" \
   "ParameterKey=SimulateWebsitePublish,ParameterValue=${SIMULATE_WEBSITE_PUBLISH}" \
-  "ParameterKey=AlertEmail,ParameterValue=${ALERT_EMAIL}"
+  "ParameterKey=AlertEmail,ParameterValue=${ALERT_EMAIL}" \
+  "ParameterKey=AiModel,ParameterValue=${AI_MODEL}"

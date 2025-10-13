@@ -1,3 +1,4 @@
+import { OpenAIResponsesProviderOptions } from "@ai-sdk/openai";
 import {
   SimplifiedNewsItem,
   SimplifiedNewsResponse,
@@ -7,10 +8,11 @@ import { callLLM } from "./getLLMProvider";
 import fs from "node:fs/promises";
 
 const MAX_OUTPUT_TOKENS = 32768; // this is the max tokens for the gpt-4.1 model.
-const BATCH_SIZE = 150;
+const BATCH_SIZE = 75;
 const MAX_PARALLEL_REQUESTS = 5;
 const BATCH_WAIT_TIME_MS = 2000; // 2 seconds
 const ROUND_WAIT_TIME_MS = 4000; // 4 seconds
+const DEDUPLICATION_EARLY_STOP_THRESHOLD = 2;
 const DEDUPLICATION_RATIO_THRESHOLD = 0.98;
 const MIN_ITEMS_PER_ROUND = 30;
 const SHOULD_SKIP_WRITE_TO_FILE = process.env.IS_LAMBDA === "true";
@@ -66,6 +68,12 @@ async function deduplicateBatch(
     prompt: JSON.stringify(newsItems, null, 2),
     schema: SimplifiedNewsResponseSchema,
     maxOutputTokens: MAX_OUTPUT_TOKENS,
+    providerOptions: {
+      openai: {
+        store: true,
+        reasoningEffort: "high",
+      } satisfies OpenAIResponsesProviderOptions,
+    },
   });
 
   const batchName = `${String(roundNumber).padStart(2, "0")}-${String(
@@ -327,6 +335,7 @@ export async function deduplicate(
         0
       );
       const ratio = afterCount / beforeCount;
+      const diff = beforeCount - afterCount;
 
       // Check if we should continue
       if (ratio >= DEDUPLICATION_RATIO_THRESHOLD) {
@@ -334,6 +343,13 @@ export async function deduplicate(
           `\n✋ Stopping: ratio ${ratio.toFixed(
             2
           )} >= ${DEDUPLICATION_RATIO_THRESHOLD}`
+        );
+        break;
+      }
+
+      if (diff <= DEDUPLICATION_EARLY_STOP_THRESHOLD) {
+        console.log(
+          `\n✋ Stopping: diff ${diff} < ${DEDUPLICATION_EARLY_STOP_THRESHOLD}`
         );
         break;
       }

@@ -1,4 +1,4 @@
-import { NewsResponse, NewsResponseSchema } from "../types";
+import { NewItemLabels, NewsResponse, NewsResponseSchema } from "../types";
 import { CustomTerms } from "./customTerms";
 import { callLLM, getLLMProvider } from "./getLLMProvider";
 import { OpenAIResponsesProviderOptions } from "@ai-sdk/openai";
@@ -16,7 +16,10 @@ Your task is to summarize each news item individually in isolation of the other 
 6. Use the following terms/idioms when translating to English only: ${CustomTerms.map(
   (term) => `${term.arabic} -> ${term.english}`
 ).join(", ")}
-7. The number of news items in the response should be exactly the number of news items in the input, do not add or remove any news items.`;
+7. The number of news items in the response should be exactly the number of news items in the input, do not add or remove any news items.
+8. When applying labels, use the following labels ONLY: ${NewItemLabels.join(
+  ", "
+)}`;
 
 export async function summarize(
   news: string[],
@@ -80,6 +83,7 @@ export async function summarize(
         providerOptions: {
           openai: {
             store: true,
+            reasoningEffort: "high",
           } satisfies OpenAIResponsesProviderOptions,
         },
       });

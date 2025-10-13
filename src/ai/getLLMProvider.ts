@@ -1,4 +1,4 @@
-import { openai } from "@ai-sdk/openai";
+import { openai, OpenAIResponsesProviderOptions } from "@ai-sdk/openai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { generateObject, GenerateObjectResult } from "ai";
 import { ZodObject } from "zod";
@@ -60,6 +60,12 @@ export async function callLLM<Schema>(
   const result: GenerateObjectResult<Schema> = await (generateObject as any)({
     ...input,
     model,
+    providerOptions: {
+      openai: {
+        store: true,
+        reasoningEffort: "low",
+      } satisfies OpenAIResponsesProviderOptions,
+    },
   });
   currentUsage.inputTokens += result.usage.inputTokens ?? 0;
   currentUsage.outputTokens += result.usage.outputTokens ?? 0;
