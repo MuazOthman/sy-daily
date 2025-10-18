@@ -387,6 +387,6 @@ export async function deduplicate(
     return finalItems;
   } catch (error) {
     console.error("Failed to deduplicate news items:", error);
-    return [];
+    throw error;
   }
 }
