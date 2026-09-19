@@ -5,6 +5,8 @@ import {
   SimplifiedNewsResponseSchema,
 } from "../types";
 import { callLLM } from "./getLLMProvider";
+import { qualityGate } from "./qualityGate";
+import { embeddingDeduplicate } from "./embeddingDedup";
 import fs from "node:fs/promises";
 
 const MAX_OUTPUT_TOKENS = 32768; // this is the max tokens for the gpt-4.1 model.
@@ -256,6 +258,48 @@ async function deduplicateRound(
 }
 
 export async function deduplicate(
+  newsItems: string[]
+): Promise<SimplifiedNewsItem[]> {
+  if (newsItems.length === 0) {
+    return [];
+  }
+
+  // ① 质量闸门（0 token）：先剔除太短 / 完全重复的原始稿，省下后续所有 LLM 调用
+  const gate = qualityGate(newsItems);
+  console.log(
+    `🚪 Quality gate: ${gate.stats.total} → ${gate.stats.passed} ` +
+      `(tooShort=${gate.stats.tooShort}, exactDup=${gate.stats.exactDuplicate})`
+  );
+  if (gate.items.length === 0) {
+    return [];
+  }
+
+  // ② embedding 去重（净省 token）：用廉价向量聚类替代昂贵的 gpt-4.1 多轮 merge。
+  //    默认关闭（EMBEDDING_DEDUP=1 开启）；任何失败都回退到原有 LLM 去重，保证不退化。
+  const useEmbedding = (process.env.EMBEDDING_DEDUP ?? "0") === "1";
+  if (useEmbedding) {
+    try {
+      const t0 = Date.now();
+      const result = await embeddingDeduplicate(gate.items);
+      console.log(
+        `✅ Embedding dedup: ${gate.items.length} → ${result.length} items ` +
+          `in ${((Date.now() - t0) / 1000).toFixed(1)}s (0 LLM tokens)`
+      );
+      return result;
+    } catch (e) {
+      console.warn(
+        "⚠️ Embedding dedup failed, falling back to LLM dedup:",
+        (e as Error).message
+      );
+    }
+  }
+
+  // ③ 原有 LLM 多轮去重（兜底 / 未启用 embedding 时）
+  return deduplicateLLM(gate.items);
+}
+
+// 原多轮 LLM 去重实现（作为 embedding 去重的兜底路径保留，行为不变）
+export async function deduplicateLLM(
   newsItems: string[]
 ): Promise<SimplifiedNewsItem[]> {
   if (newsItems.length === 0) {
