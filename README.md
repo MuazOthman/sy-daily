@@ -136,7 +136,7 @@ SESSION_STRING=your_session_string
 # AI Provider Configuration (choose one or both)
 OPENAI_API_KEY=your_openai_key
 ANTHROPIC_API_KEY=your_anthropic_key
-AI_MODEL=openai:gpt-4.1-2025-04-14
+AI_MODEL=openai:gpt-6-luna
 # Alternative: AI_MODEL=anthropic:claude-3-5-sonnet-20241022
 
 # Telegram Channel Configuration

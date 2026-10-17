@@ -41,8 +41,8 @@ Parameters:
     Default: ""
   AiModel:
     Type: String
-    Default: "openai:gpt-4.1-2025-04-14"
-    Description: AI model to use with provider prefix (e.g., openai:gpt-4.1-2025-04-14, anthropic:claude-3-5-sonnet-20241022)
+    Default: "openai:gpt-6-luna"
+    Description: AI model to use with provider prefix (e.g., openai:gpt-6-luna, anthropic:claude-3-5-sonnet-20241022)
   TelegramChannelIdEnglish:
     Type: String
     Description: Telegram channel ID for English posts

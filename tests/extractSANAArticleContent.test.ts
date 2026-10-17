@@ -59,7 +59,7 @@ describe("extractSANAArticleContent", () => {
 
   beforeEach(async () => {
     // Mock the browser module before importing
-    vi.doMock("../src/browser", () => ({
+    vi.doMock("../src/news-collection/browser", () => ({
       fetchAndParseHTML: mockFetchAndParseHTML,
     }));
 
