@@ -3,8 +3,21 @@ import { anthropic } from "@ai-sdk/anthropic";
 import { generateObject, GenerateObjectResult } from "ai";
 import { ZodObject } from "zod";
 
+const DEFAULT_MODEL = "openai:gpt-6-luna";
+
+function getModelName(): string {
+  return process.env.AI_MODEL || DEFAULT_MODEL;
+}
+
+// Max output tokens (reasoning tokens included) for the configured model.
+// gpt-6-luna allows 128k; 32k stays within the limit of older models such as gpt-4.1.
+export function getMaxOutputTokens(): number {
+  const model = getModelName().replace(/^openai:/, "");
+  return model === "gpt-6-luna" ? 128000 : 32768;
+}
+
 export function getLLMProvider() {
-  const modelName = process.env.AI_MODEL || "openai:gpt-6-luna";
+  const modelName = getModelName();
 
   if (modelName.startsWith("anthropic:")) {
     if (!process.env.ANTHROPIC_API_KEY) {

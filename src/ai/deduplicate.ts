@@ -4,10 +4,9 @@ import {
   SimplifiedNewsResponse,
   SimplifiedNewsResponseSchema,
 } from "../types";
-import { callLLM } from "./getLLMProvider";
+import { callLLM, getMaxOutputTokens } from "./getLLMProvider";
 import fs from "node:fs/promises";
 
-const MAX_OUTPUT_TOKENS = 128000; // this is the max tokens for the gpt-6-luna model (includes reasoning tokens).
 const BATCH_SIZE = 75;
 const MAX_PARALLEL_REQUESTS = 5;
 const BATCH_WAIT_TIME_MS = 2000; // 2 seconds
@@ -67,7 +66,7 @@ async function deduplicateBatch(
     system: systemPromptDeduplicate,
     prompt: JSON.stringify(newsItems, null, 2),
     schema: SimplifiedNewsResponseSchema,
-    maxOutputTokens: MAX_OUTPUT_TOKENS,
+    maxOutputTokens: getMaxOutputTokens(),
     providerOptions: {
       openai: {
         store: true,
