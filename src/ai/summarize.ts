@@ -3,7 +3,7 @@ import { CustomTerms } from "./customTerms";
 import { callLLM, getLLMProvider } from "./getLLMProvider";
 import { OpenAIResponsesProviderOptions } from "@ai-sdk/openai";
 
-const MAX_OUTPUT_TOKENS = 32768; // this is the max tokens for the gpt-4.1 model.
+const MAX_OUTPUT_TOKENS = 128000; // this is the max tokens for the gpt-6-luna model (includes reasoning tokens).
 
 const systemPromptSummarize = `You are a news editor fluent in English and Arabic. You'll be given Arabic news snippets from official sources posted in the last 24 hours.
 Your task is to summarize each news item individually in isolation of the other news items. Follow these rules:

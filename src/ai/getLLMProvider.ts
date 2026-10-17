@@ -4,7 +4,7 @@ import { generateObject, GenerateObjectResult } from "ai";
 import { ZodObject } from "zod";
 
 export function getLLMProvider() {
-  const modelName = process.env.AI_MODEL || "openai:gpt-4.1-2025-04-14";
+  const modelName = process.env.AI_MODEL || "openai:gpt-6-luna";
 
   if (modelName.startsWith("anthropic:")) {
     if (!process.env.ANTHROPIC_API_KEY) {

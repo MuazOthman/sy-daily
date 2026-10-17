@@ -7,7 +7,7 @@ import {
 import { callLLM } from "./getLLMProvider";
 import fs from "node:fs/promises";
 
-const MAX_OUTPUT_TOKENS = 32768; // this is the max tokens for the gpt-4.1 model.
+const MAX_OUTPUT_TOKENS = 128000; // this is the max tokens for the gpt-6-luna model (includes reasoning tokens).
 const BATCH_SIZE = 75;
 const MAX_PARALLEL_REQUESTS = 5;
 const BATCH_WAIT_TIME_MS = 2000; // 2 seconds

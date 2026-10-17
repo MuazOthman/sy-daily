@@ -234,7 +234,7 @@ The application requires these environment variables:
 - `SESSION_STRING` - Telegram user session for channel access
 - `OPENAI_API_KEY` - OpenAI API for summarization (optional if using Anthropic)
 - `ANTHROPIC_API_KEY` - Anthropic API for summarization (optional if using OpenAI)
-- `AI_MODEL` - AI model specification with provider prefix (e.g., "openai:gpt-4.1-2025-04-14", "anthropic:claude-3-5-sonnet-20241022")
+- `AI_MODEL` - AI model specification with provider prefix (e.g., "openai:gpt-6-luna", "anthropic:claude-3-5-sonnet-20241022")
 - `TELEGRAM_CHANNEL_ID_ENGLISH` - Telegram channel ID for English posts
 - `TELEGRAM_CHANNEL_ID_ARABIC` - Telegram channel ID for Arabic posts
 - `GITHUB_TOKEN` - GitHub token for publishing to website
