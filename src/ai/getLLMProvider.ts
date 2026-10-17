@@ -73,10 +73,13 @@ export async function callLLM<Schema>(
   const result: GenerateObjectResult<Schema> = await (generateObject as any)({
     ...input,
     model,
+    // Defaults below; options passed by the caller take precedence.
     providerOptions: {
+      ...input.providerOptions,
       openai: {
         store: true,
         reasoningEffort: "low",
+        ...input.providerOptions?.openai,
       } satisfies OpenAIResponsesProviderOptions,
     },
   });
